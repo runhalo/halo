@@ -1,0 +1,76 @@
+# Dependencies
+node_modules/
+dist/
+
+# Build artifacts
+*.tsbuildinfo
+coverage/
+*.log
+*.vsix
+deno.lock
+
+# Secrets — NEVER commit
+.env
+.env.local
+.env.*
+
+# macOS
+.DS_Store
+
+# Internal — NOT for public repo
+CLAUDE.md
+research/
+graduation-data/
+test-results/
+stripe/
+supabase/
+.gstack/
+json
+
+# Internal scripts
+scripts/autoresearch/
+scripts/auto-labeler.py
+scripts/gt-*.py
+scripts/gt-*.ts
+scripts/gt-*.sh
+scripts/live-*.py
+scripts/prompt-*.ts
+scripts/campaign-*.sh
+scripts/backfill-*.py
+scripts/backfill-*.ts
+scripts/compute-fp-rates.js
+scripts/corpus-scan.js
+scripts/deploy-dashboard.sh
+scripts/e2e-*.sh
+scripts/generate-campaign-summary.ts
+scripts/graduate-to-gt.ts
+scripts/import-scan-results.ts
+scripts/pattern-suggestion-pipeline.py
+scripts/revalidate-gt.js
+scripts/run-campaign.py
+scripts/run-graduation-pipeline.py
+scripts/scan-campaign.json
+scripts/batch-scan.sh
+
+# Internal docs
+docs/pitch/
+docs/demo/march-24-demo-script.md
+
+# Internal workflows
+.github/workflows/nightly-autoresearch.yml
+.github/workflows/daily-accuracy*.yml
+.github/workflows/daily-health.yml
+.github/workflows/dogfood-scan.yml
+.github/workflows/qa-report-notify.yml
+.github/workflows/user-journey-qa.yml
+
+# Proprietary engine components
+packages/engine/src/graduation/
+packages/engine/src/review-board/
+packages/engine/src/fp-patterns.ts
+packages/engine/src/__tests__/ground-truth/
+packages/visual-scanner/
+
+# IDE
+.vscode/
+.idea/

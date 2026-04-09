@@ -1,0 +1,210 @@
+# Halo COPPA Rule Pack - Tier 1
+# Version: 1.0.0
+# Compliance: COPPA & COPPA 2.0 (April 22, 2026)
+# Rules: coppa-auth-001 through coppa-retention-005
+
+version: "1.0.0"
+rules:
+  # ============================================
+  # 1. coppa-auth-001: Unverified Social Login
+  # ============================================
+  - metadata:
+      id: coppa-auth-001
+      name: Unverified Social Login Providers
+      coppaSection: "§ 312.5 (Parental Consent) & COPPA 2.0 § 312.11 (Mixed Audience)"
+      severity: critical
+      penaltyRange: "$53,088 per violation"
+      languages:
+        - typescript
+        - javascript
+        - python
+        - swift
+      falsePositiveRisk: medium
+    patterns:
+      - regex:
+          pattern: "(signInWithPopup|signInWithRedirect|authenticate)\\s*\\(\\s*['\"](google|facebook|twitter|github)['\"]"
+          flags: "g"
+      - regex:
+          pattern: "(FirebaseAuth|Auth0|Passport)\\s*\\.\\s*(signInWithPopup|authenticate)"
+          flags: "g"
+    autoFix:
+      description: "Wrap auth call in age verification check or use parental consent flow"
+      replacement: |
+        // Check age before allowing social login
+        if (user.age >= 13) {
+          await auth.signInWithPopup('${1:provider}');
+        } else {
+          // Use COPPA-compliant parental email verification
+          await auth.signInWithParentEmail();
+        }
+
+  # ============================================
+  # 2. coppa-data-002: PII in URL Parameters
+  # ============================================
+  - metadata:
+      id: coppa-data-002
+      name: Sensitive Data in GET Requests
+      coppaSection: "§ 312.2 (Definitions - Personal Information)"
+      severity: high
+      penaltyRange: "$53,088 per violation"
+      languages:
+        - typescript
+        - javascript
+        - python
+      falsePositiveRisk: low
+    patterns:
+      - regex:
+          pattern: "(\\?|&)(email|first_?name|last_?name|dob|birth_?date|phone)=[^&\\s\"']+"
+          flags: "gi"
+      - regex:
+          pattern: "`https?://[^`]*\\$\\{[^}]*(email|firstName|lastName|dob|phone)[^}]*\\}`"
+          flags: "g"
+      - regex:
+          pattern: "urlEncode|encodeURIComponent\\s*\\([^)]*(email|firstName|lastName|dob|phone)"
+          flags: "g"
+    autoFix:
+      description: "Switch from GET to POST request with body data"
+      replacement: |
+        // Use POST request instead of URL parameters
+        axios.post('/api/register', {
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName
+        });
+
+  # ============================================
+  # 3. coppa-tracking-003: Third-Party Ad Trackers
+  # ============================================
+  - metadata:
+      id: coppa-tracking-003
+      name: Restricted Third-Party Ad Trackers
+      coppaSection: "§ 312.2 (Definitions - Support for Internal Operations) - COPPA 2.0 Focus"
+      severity: critical
+      penaltyRange: "$53,088 per violation"
+      languages:
+        - typescript
+        - javascript
+        - html
+      falsePositiveRisk: high
+    patterns:
+      - regex:
+          pattern: "fbq\\s*\\(\\s*['\"]init['\"]"
+          flags: "g"
+      - regex:
+          pattern: "ga\\s*\\(\\s*['\"]create['\"].*?(?!child_directed_treatment)"
+          flags: "g"
+      - regex:
+          pattern: "adsbygoogle"
+          flags: "g"
+      - regex:
+          pattern: "adroll"
+          flags: "g"
+      - regex:
+          pattern: "<script[^>]+src=['\"][^'\"]*(googlesyndication|doubleclick|adservice)"
+          flags: "gi"
+    autoFix:
+      description: "Add child_directed_treatment flag to ad SDK initialization"
+      replacement: |
+        // Google Ads - Add child-directed treatment flag
+        gtag('config', 'UA-XXXXX', {
+          'child_directed_treatment': true
+        });
+        
+        // Facebook Pixel - Add data processing options
+        fbq('init', 'XXXXX', {}, {
+          'data_processing_options': 'LDU'
+        });
+
+  # ============================================
+  # 4. coppa-geo-004: Precise Geolocation Collection
+  # ============================================
+  - metadata:
+      id: coppa-geo-004
+      name: Precise Geolocation Without Parental Consent
+      coppaSection: "§ 312.2 (Personal Information)"
+      severity: high
+      penaltyRange: "$53,088 per violation"
+      languages:
+        - typescript
+        - javascript
+        - swift
+      falsePositiveRisk: medium
+    patterns:
+      - regex:
+          pattern: "navigator\\.geolocation\\.getCurrentPosition"
+          flags: "g"
+      - regex:
+          pattern: "navigator\\.geolocation\\.watchPosition"
+          flags: "g"
+      - regex:
+          pattern: "CLLocationManager\\.startUpdatingLocation"
+          flags: "g"
+      - regex:
+          pattern: "enableHighAccuracy\\s*:\\s*true"
+          flags: "g"
+    autoFix:
+      description: "Downgrade to coarse location or add parental consent gate"
+      replacement: |
+        // Option 1: Downgrade to coarse location
+        navigator.geolocation.getCurrentPosition(success, error, {
+          enableHighAccuracy: false,
+          maximumAge: Infinity,
+          timeout: 10000
+        });
+        
+        // Option 2: Add parental consent check
+        if (user.hasParentalConsent) {
+          navigator.geolocation.getCurrentPosition(success, error);
+        }
+
+  # ============================================
+  # 5. coppa-retention-005: Missing Data Retention Policy
+  # Updated: 2026-03-12 — COPPA 2025 final rule explicitly
+  # prohibits indefinite retention (§ 312.10)
+  # ============================================
+  - metadata:
+      id: coppa-retention-005
+      name: Missing Data Retention Policy in Database Schemas
+      coppaSection: "§ 312.10 (Data Retention and Deletion) - COPPA 2025 Final Rule"
+      severity: medium
+      penaltyRange: "$53,088 per violation (indefinite retention prohibition)"
+      languages:
+        - typescript
+        - javascript
+        - python
+        - sql
+        - go
+        - java
+        - kotlin
+      falsePositiveRisk: high
+    patterns:
+      - regex:
+          pattern: "(new\\s+Schema|interface\\s+User|class\\s+User|@Entity)\\s*\\{?[^}]*\\}(?!.*(deleted_at|expires|retention|TTL))"
+          flags: "g"
+      - regex:
+          pattern: "CREATE\\s+TABLE\\s+User\\s*\\([^)]*\\)(?!.*(deleted_at|expiration|retention))"
+          flags: "gi"
+      - regex:
+          pattern: "(mongoose|sequelize|typeorm)\\s*\\.\\s*model\\s*\\([^)]*\\)(?!.*expires)"
+          flags: "g"
+      - regex:
+          pattern: "class\\s+\\w+.*extends\\s+Model(?!.*deletedAt)"
+          flags: "g"
+    autoFix:
+      description: "Add explicit retention period, TTL index, and deletion mechanism per COPPA 2025 § 312.10"
+      replacement: |
+        // Mongoose - Add TTL index with explicit retention period
+        new Schema({
+          createdAt: { type: Date, expires: '365d' },
+          retentionDays: { type: Number, default: 365 },
+          email: String
+        });
+
+        // Sequelize - Add deletedAt with retention config
+        sequelize.define('User', {
+          deletedAt: { type: DataTypes.DATE },
+          retentionDays: { type: DataTypes.INTEGER, defaultValue: 365 },
+          // ... other fields
+        }, {
+          paranoid: true
+        });

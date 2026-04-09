@@ -1,0 +1,256 @@
+# Halo Compliance Audit — GitHub Action
+# Scans pull requests for COPPA, ethical design, and AI safety violations
+# Uploads SARIF to GitHub Security tab + posts PR comment
+#
+# Supports all Halo rule packs:
+#   coppa     — COPPA 2.0 children's privacy (Layer 1)
+#   ethical   — Ethical design / dark patterns (Layer 2)
+#   ai-audit  — AI-generated code safety (Layer 3)
+#   au-sbd    — Australia Safety by Design
+#   au-osa    — Australia Online Safety Act
+#
+# Usage in any repo:
+#   - uses: runhalo/halo-action@v1
+#     with:
+#       pack: 'coppa ethical ai-audit'
+#       review-board: true
+#     env:
+#       HALO_LICENSE_KEY: ${{ secrets.HALO_LICENSE_KEY }}
+
+name: Halo Compliance Audit
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**.ts'
+      - '**.js'
+      - '**.tsx'
+      - '**.jsx'
+      - '**.py'
+      - '**.swift'
+      - '**.html'
+      - '**.php'
+      - '**.kt'
+      - '**.java'
+      - '**.cs'
+      - '**.cpp'
+      - '**.vue'
+      - '**.svelte'
+
+  # Allow manual trigger for full-repo audits
+  workflow_dispatch:
+    inputs:
+      pack:
+        description: 'Rule packs (space-separated)'
+        required: false
+        default: 'coppa ethical ai-audit'
+      review-board:
+        description: 'Enable AI Review Board'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  halo-audit:
+    runs-on: ubuntu-latest
+    name: Compliance Scan
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Halo
+        run: npm install -g @runhalo/cli@latest
+
+      # --- Primary scan: JSON output for PR comment ---
+      - name: Run Halo scan
+        id: scan
+        env:
+          HALO_LICENSE_KEY: ${{ secrets.HALO_LICENSE_KEY }}
+        run: |
+          PACK="${{ github.event.inputs.pack || 'coppa ethical ai-audit' }}"
+          REVIEW_FLAG=""
+          if [ "${{ github.event.inputs.review-board }}" == "true" ] && [ -n "$HALO_LICENSE_KEY" ]; then
+            REVIEW_FLAG="--review-board"
+          fi
+
+          echo "::group::Halo scan configuration"
+          echo "Packs: $PACK"
+          echo "Review board: ${{ github.event.inputs.review-board || 'false' }}"
+          echo "::endgroup::"
+
+          npx runhalo scan . \
+            --pack $PACK \
+            --format json \
+            --output halo-results.json \
+            --no-prompt \
+            $REVIEW_FLAG \
+            || true
+
+          if [ -f halo-results.json ]; then
+            VIOLATIONS=$(jq -r '.totalViolations // 0' halo-results.json)
+            CRITICAL=$(jq '[.results[]?.violations[]? | select(.severity == "critical")] | length' halo-results.json)
+            HIGH=$(jq '[.results[]?.violations[]? | select(.severity == "high")] | length' halo-results.json)
+            MEDIUM=$(jq '[.results[]?.violations[]? | select(.severity == "medium")] | length' halo-results.json)
+            LOW=$(jq '[.results[]?.violations[]? | select(.severity == "low")] | length' halo-results.json)
+            FILES=$(jq -r '.totalFiles // 0' halo-results.json)
+          else
+            VIOLATIONS=0; CRITICAL=0; HIGH=0; MEDIUM=0; LOW=0; FILES=0
+          fi
+
+          echo "violations=$VIOLATIONS" >> $GITHUB_OUTPUT
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "medium=$MEDIUM" >> $GITHUB_OUTPUT
+          echo "low=$LOW" >> $GITHUB_OUTPUT
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+
+      # --- SARIF output for GitHub Security tab ---
+      - name: Generate SARIF
+        run: |
+          PACK="${{ github.event.inputs.pack || 'coppa ethical ai-audit' }}"
+          npx runhalo scan . \
+            --pack $PACK \
+            --format sarif \
+            --output halo-results.sarif \
+            --no-prompt \
+            --offline \
+            || true
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: halo-results.sarif
+          category: halo-compliance-audit
+        continue-on-error: true
+
+      # --- PR comment with results ---
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          VIOLATIONS: ${{ steps.scan.outputs.violations }}
+          CRITICAL: ${{ steps.scan.outputs.critical }}
+          HIGH: ${{ steps.scan.outputs.high }}
+          MEDIUM: ${{ steps.scan.outputs.medium }}
+          LOW: ${{ steps.scan.outputs.low }}
+          FILES: ${{ steps.scan.outputs.files }}
+        with:
+          script: |
+            const fs = require('fs');
+            const total = parseInt(process.env.VIOLATIONS) || 0;
+            const critical = parseInt(process.env.CRITICAL) || 0;
+            const high = parseInt(process.env.HIGH) || 0;
+            const medium = parseInt(process.env.MEDIUM) || 0;
+            const low = parseInt(process.env.LOW) || 0;
+            const files = parseInt(process.env.FILES) || 0;
+
+            let results = {};
+            try {
+              results = JSON.parse(fs.readFileSync('halo-results.json', 'utf8'));
+            } catch (e) { /* no results file */ }
+
+            const issues = results.results?.flatMap(r => r.violations || []) || [];
+            let body = '';
+
+            if (total === 0) {
+              body = `## :white_check_mark: Halo Compliance Scan — All Clear
+
+            No compliance issues detected across ${files} files.
+
+            | Layer | Pack | Status |
+            |-------|------|--------|
+            | Layer 1 | COPPA 2.0 | :white_check_mark: Passed |
+            | Layer 2 | Ethical Design | :white_check_mark: Passed |
+            | Layer 3 | AI Safety | :white_check_mark: Passed |
+
+            _Powered by [Halo](https://runhalo.dev) — Ethical code scanning for children's products_`;
+            } else {
+              body = `## :rotating_light: Halo Compliance Scan — ${total} Issue(s) Found\n\n`;
+              body += `| Severity | Count |\n|----------|-------|\n`;
+              if (critical > 0) body += `| :x: Critical | ${critical} |\n`;
+              if (high > 0) body += `| :warning: High | ${high} |\n`;
+              if (medium > 0) body += `| :large_yellow_circle: Medium | ${medium} |\n`;
+              if (low > 0) body += `| :large_blue_circle: Low | ${low} |\n`;
+              body += '\n';
+
+              // Top 10 issues
+              const topIssues = issues.slice(0, 10);
+              if (topIssues.length > 0) {
+                body += '### Top Issues\n\n';
+                body += '| Rule | File | Line | Severity |\n';
+                body += '|------|------|------|----------|\n';
+                topIssues.forEach(v => {
+                  const sev = v.severity === 'critical' ? ':x:' :
+                              v.severity === 'high' ? ':warning:' :
+                              v.severity === 'medium' ? ':large_yellow_circle:' : ':large_blue_circle:';
+                  const shortPath = v.filePath?.split('/').slice(-2).join('/') || 'unknown';
+                  body += `| \`${v.ruleId}\` | \`${shortPath}\` | ${v.line || '-'} | ${sev} ${v.severity} |\n`;
+                });
+                if (issues.length > 10) {
+                  body += `\n_... and ${issues.length - 10} more. Run \`npx runhalo scan .\` locally for full details._\n`;
+                }
+              }
+
+              body += '\n---\n';
+              body += `Scanned **${files}** files | `;
+              body += `${critical} critical, ${high} high, ${medium} medium, ${low} low\n\n`;
+              body += '_Powered by [Halo](https://runhalo.dev) — Ethical code scanning for children\'s products_';
+            }
+
+            // Upsert comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const existing = comments.find(c =>
+              c.user?.type === 'Bot' && c.body?.includes('Halo Compliance Scan')
+            );
+
+            const params = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            };
+
+            if (existing) {
+              await github.rest.issues.updateComment({ ...params, comment_id: existing.id });
+            } else {
+              await github.rest.issues.createComment({ ...params, issue_number: context.issue.number });
+            }
+
+      # --- Gate: block merge on critical violations ---
+      - name: Check compliance gate
+        if: always()
+        run: |
+          CRITICAL=${{ steps.scan.outputs.critical }}
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "::error::Found $CRITICAL critical compliance issue(s) — merge blocked"
+            exit 1
+          fi
+
+          HIGH=${{ steps.scan.outputs.high }}
+          if [ "$HIGH" -gt 0 ]; then
+            echo "::warning::Found $HIGH high-severity compliance issues — review recommended before merge"
+          fi
+
+          TOTAL=${{ steps.scan.outputs.violations }}
+          if [ "$TOTAL" -gt 0 ]; then
+            echo "::notice::Halo found $TOTAL total compliance issues. Run 'npx runhalo scan .' locally for details."
+          else
+            echo "::notice::Halo compliance scan passed — no issues detected"
+          fi

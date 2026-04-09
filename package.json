@@ -1,0 +1,52 @@
+{
+  "name": "runhalo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source COPPA 2.0 risk scanner and ethical design linter for children's apps",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "sync-rules": "node -e \"JSON.parse(require('fs').readFileSync('packages/engine/rules/rules.json','utf8'))\" && cp packages/engine/rules/rules.json supabase/functions/scan-repo/rules.json && cp packages/engine/rules/rules.json supabase/functions/compute-compliance-score/rules.json && echo '✓ rules.json synced to both edge functions'",
+    "build": "npm run sync-rules && cd packages/engine && npm run build && cd ../cli && npm run build && cd ../mcp && npm run build",
+    "build:all": "npm run build",
+    "test": "npm run test:engine && npm run test:cli && npm run test:mcp && npm run test:vscode",
+    "test:engine": "cd packages/engine && npm test",
+    "test:cli": "cd packages/cli && npm test",
+    "test:mcp": "cd packages/mcp && npm test",
+    "test:vscode": "cd packages/vscode && npm test",
+    
+    "test:all": "npm run test",
+    "clean": "rm -rf packages/*/dist packages/*/node_modules node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "coppa",
+    "coppa-2",
+    "privacy",
+    "child-safety",
+    "children",
+    "compliance-scanner",
+    "ethical-design",
+    "linter",
+    "static-analysis",
+    "aadc",
+    "gdpr"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/runhalo/halo.git"
+  },
+  "homepage": "https://runhalo.dev",
+  "bugs": {
+    "url": "https://github.com/runhalo/halo/issues"
+  },
+  "author": "Mindful Media <hello@mindfulmedia.org> (https://mindfulmedia.org)",
+  "license": "Apache-2.0"
+}

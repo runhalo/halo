@@ -1,0 +1,172 @@
+# Halo COPPA 2.0 Scan — Full (PR Comments + SARIF + Severity Gate)
+# Production-grade workflow with PR comment summaries, SARIF integration,
+# and configurable severity thresholds.
+#
+# Copy this file to: .github/workflows/halo.yml
+# More info: https://runhalo.dev
+
+name: Halo COPPA Audit
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**.ts'
+      - '**.tsx'
+      - '**.js'
+      - '**.jsx'
+      - '**.py'
+      - '**.swift'
+      - '**.html'
+      - '**.php'
+      - '**.kt'
+      - '**.java'
+      - '**.cs'
+      - '**.cpp'
+      - '**.vue'
+      - '**.svelte'
+
+jobs:
+  halo-audit:
+    runs-on: ubuntu-latest
+    name: COPPA Risk Scan
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Halo
+        run: npm install @runhalo/cli
+
+      - name: Run Halo scan (JSON)
+        id: scan-json
+        run: |
+          npx runhalo scan . --format json --output halo-results.json || true
+          VIOLATIONS=$(cat halo-results.json | jq -r '.totalViolations // 0')
+          echo "violations=$VIOLATIONS" >> $GITHUB_OUTPUT
+
+      - name: Run Halo scan (SARIF)
+        run: npx runhalo scan . --format sarif --output halo-results.sarif || true
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: halo-results.sarif
+          category: halo-coppa-audit
+        continue-on-error: true
+
+      - name: Post PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let results = {};
+            try {
+              results = JSON.parse(fs.readFileSync('halo-results.json', 'utf8'));
+            } catch (e) {
+              console.log('No results file found');
+              return;
+            }
+
+            const issues = results.results?.flatMap(r => r.violations) || [];
+            const total = issues.length;
+
+            const critical = issues.filter(v => v.severity === 'critical');
+            const high = issues.filter(v => v.severity === 'high');
+            const medium = issues.filter(v => v.severity === 'medium');
+            const low = issues.filter(v => v.severity === 'low');
+
+            let body = '';
+
+            if (total === 0) {
+              body = '## \u2705 Halo COPPA 2.0 Scan Passed\n\nNo issues detected.\n\n_Powered by [runhalo.dev](https://runhalo.dev)_';
+            } else {
+              body = `## \ud83d\udea8 Halo COPPA 2.0 \u2014 ${total} Issue(s) Detected\n\n`;
+
+              if (critical.length > 0) {
+                body += `### \u274c Critical (${critical.length})\n`;
+                critical.slice(0, 5).forEach(v => {
+                  body += `- \`${v.ruleId}\` in \`${v.filePath}\` line ${v.line}: ${v.ruleName}\n`;
+                });
+                if (critical.length > 5) body += `- ... and ${critical.length - 5} more\n`;
+                body += '\n';
+              }
+
+              if (high.length > 0) {
+                body += `### \u26a0\ufe0f High (${high.length})\n`;
+                high.slice(0, 5).forEach(v => {
+                  body += `- \`${v.ruleId}\` in \`${v.filePath}\` line ${v.line}: ${v.ruleName}\n`;
+                });
+                if (high.length > 5) body += `- ... and ${high.length - 5} more\n`;
+                body += '\n';
+              }
+
+              if (medium.length > 0) {
+                body += `### \ud83d\udfe1 Medium (${medium.length})\n`;
+                medium.slice(0, 3).forEach(v => {
+                  body += `- \`${v.ruleId}\` in \`${v.filePath}\` line ${v.line}: ${v.ruleName}\n`;
+                });
+                if (medium.length > 3) body += `- ... and ${medium.length - 3} more\n`;
+                body += '\n';
+              }
+
+              if (low.length > 0) {
+                body += `### \ud83d\udfe2 Low (${low.length})\n\n`;
+              }
+
+              body += '---\n';
+              body += `\ud83d\udcca Scanned ${results.totalFiles || 0} files | `;
+              body += `${critical.length} critical, ${high.length} high, ${medium.length} medium, ${low.length} low\n\n`;
+              body += '_Review these findings before merging. Run `npx runhalo scan .` locally for details._\n';
+              body += '_Powered by [runhalo.dev](https://runhalo.dev)_';
+            }
+
+            // Find or update existing Halo comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const existing = comments.find(c =>
+              c.user?.type === 'Bot' && c.body?.includes('Halo COPPA')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
+
+      - name: Fail on critical violations
+        if: steps.scan-json.outputs.violations != '0'
+        run: |
+          CRITICAL=$(cat halo-results.json | jq '[.results[]?.violations[]? | select(.severity == "critical")] | length')
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "::error::Found $CRITICAL critical COPPA issue(s) \u2014 merge blocked"
+            exit 1
+          fi
+          echo "::warning::Found non-critical COPPA issues \u2014 review recommended"

@@ -1,0 +1,130 @@
+{
+  "name": "halo-vscode",
+  "displayName": "Halo — Children's Privacy Compliance Scanner",
+  "description": "Scan your code for children's privacy compliance risks. COPPA violations, dark patterns, missing consent flows, and age verification gaps — highlighted inline as you work.",
+  "version": "1.2.4",
+  "publisher": "runhalo",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#0a0a0f",
+    "theme": "dark"
+  },
+  "qna": "marketplace",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Testing",
+    "Other"
+  ],
+  "keywords": [
+    "coppa",
+    "compliance",
+    "child-safety",
+    "linting",
+    "security",
+    "privacy",
+    "ethical-design",
+    "children",
+    "privacy-by-design",
+    "dark-patterns"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact",
+    "onLanguage:python",
+    "onLanguage:swift",
+    "onLanguage:html"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "halo.activate",
+        "title": "Halo: Activate License"
+      },
+      {
+        "command": "halo.deactivate",
+        "title": "Halo: Remove License"
+      },
+      {
+        "command": "halo.scanFile",
+        "title": "Halo: Scan Current File"
+      },
+      {
+        "command": "halo.scanWorkspace",
+        "title": "Halo: Scan Workspace"
+      },
+      {
+        "command": "halo.explainRule",
+        "title": "Halo: Explain Rule"
+      },
+      {
+        "command": "halo.disable",
+        "title": "Halo: Disable Diagnostics"
+      }
+    ],
+    "configuration": {
+      "title": "Halo",
+      "properties": {
+        "halo.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable Halo COPPA scanning"
+        },
+        "halo.severity": {
+          "type": "string",
+          "default": "all",
+          "enum": [
+            "all",
+            "critical",
+            "high",
+            "medium"
+          ],
+          "description": "Minimum severity level to report"
+        },
+        "halo.scanOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan files on save"
+        },
+        "halo.scanOnType": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan files while typing (with debounce)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run esbuild-base",
+    "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --external:tree-sitter --external:tree-sitter-javascript --external:tree-sitter-typescript --format=cjs --platform=node --sourcemap",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "jest --config jest.config.cjs"
+  },
+  "dependencies": {
+    "@runhalo/engine": "file:../engine"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.27.3",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.3.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/runhalo/halo"
+  },
+  "homepage": "https://runhalo.dev",
+  "bugs": {
+    "url": "https://github.com/runhalo/halo/issues"
+  },
+  "license": "Apache-2.0"
+}

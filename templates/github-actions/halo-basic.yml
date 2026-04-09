@@ -1,0 +1,40 @@
+# Halo COPPA 2.0 Scan — Basic
+# Scans your codebase for COPPA risks on every push/PR.
+# Results appear in GitHub's Security tab (SARIF integration).
+#
+# Copy this file to: .github/workflows/halo.yml
+# More info: https://runhalo.dev
+
+name: Halo COPPA Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  halo:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and run Halo
+        run: |
+          npm install @runhalo/cli
+          npx runhalo scan . --format sarif --output halo.sarif || true
+
+      - name: Upload results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: halo.sarif
+          category: halo-coppa
+        continue-on-error: true

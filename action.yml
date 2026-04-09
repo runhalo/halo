@@ -1,0 +1,390 @@
+# Halo — Ethical Code Scanner for Children's Products
+# GitHub Action for CI/CD integration
+# https://runhalo.dev
+#
+# 4-tier gating, diff-only scanning, COPPA 2.0 countdown,
+# PR annotations, smart triggers, scan diff output
+#
+# Usage:
+#   - uses: runhalo/halo-action@v1
+#     with:
+#       review: true           # Pro/Business: full AI review
+#       diff-only: true        # Only scan changed files (cost savings)
+#     env:
+#       HALO_LICENSE_KEY: ${{ secrets.HALO_LICENSE_KEY }}
+
+name: 'Halo Ethical Code Scanner'
+description: 'Scan code for COPPA, ethical design, and AI safety compliance violations. 160 rules across 16 regulatory packs.'
+author: 'Mindful Media'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Path to scan (default: current directory)'
+    required: false
+    default: '.'
+  pack:
+    description: 'Rule packs to scan (space-separated): coppa, ethical, ai-audit, au-sbd, au-osa, eu-ai-act, eu-dsa, uk-aadc, ut-sb142, etc.'
+    required: false
+    default: ''
+  severity-threshold:
+    description: 'Minimum severity to report: critical, high, medium, low'
+    required: false
+    default: 'low'
+  fail-on:
+    description: 'Severity level that blocks merge: critical, high, medium, low, none'
+    required: false
+    default: 'critical'
+  review:
+    description: 'Enable AI Review Board for compliance verification (Pro/Business/Enterprise)'
+    required: false
+    default: 'false'
+  diff-only:
+    description: 'Only scan files changed in this PR (reduces cost ~90%)'
+    required: false
+    default: 'true'
+  smart-trigger:
+    description: 'Skip AI review for PRs that only touch docs/tests/config'
+    required: false
+    default: 'true'
+  framework:
+    description: 'Override framework detection (react, nextjs, vue, angular, django, rails)'
+    required: false
+    default: ''
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Security tab'
+    required: false
+    default: 'true'
+  pr-comment:
+    description: 'Post scan summary as PR comment with COPPA 2.0 countdown'
+    required: false
+    default: 'true'
+  pr-annotations:
+    description: 'Add inline annotations on violation lines'
+    required: false
+    default: 'true'
+
+outputs:
+  violations:
+    description: 'Total number of violations found'
+    value: ${{ steps.scan.outputs.violations }}
+  critical:
+    description: 'Number of critical violations'
+    value: ${{ steps.scan.outputs.critical }}
+  high:
+    description: 'Number of high violations'
+    value: ${{ steps.scan.outputs.high }}
+  score:
+    description: 'Compliance score (0-100)'
+    value: ${{ steps.scan.outputs.score }}
+  grade:
+    description: 'Compliance grade (A-F)'
+    value: ${{ steps.scan.outputs.grade }}
+  scan-passed:
+    description: 'Whether the scan passed the fail-on threshold'
+    value: ${{ steps.scan.outputs.scan-passed }}
+  report-path:
+    description: 'Path to the JSON results file'
+    value: ${{ steps.scan.outputs.report-path }}
+  tier:
+    description: 'Resolved license tier (free, pro, business, enterprise)'
+    value: ${{ steps.scan.outputs.tier }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Halo CLI
+      shell: bash
+      run: npm install -g @runhalo/cli@latest
+
+    # Diff-only: get list of changed files in this PR
+    - name: Get changed files
+      if: inputs.diff-only == 'true' && github.event_name == 'pull_request'
+      id: changed
+      shell: bash
+      run: |
+        # Get changed files from GitHub API
+        CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null || git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.sha }} 2>/dev/null || echo "")
+
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "skip_diff=true" >> $GITHUB_OUTPUT
+          echo "No changed files detected, will scan full repo"
+        else
+          echo "$CHANGED_FILES" > ${{ runner.temp }}/changed-files.txt
+          FILE_COUNT=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
+          echo "file_count=$FILE_COUNT" >> $GITHUB_OUTPUT
+          echo "skip_diff=false" >> $GITHUB_OUTPUT
+          echo "Changed files: $FILE_COUNT"
+        fi
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    # Smart trigger: check if PR only touches non-code files
+    - name: Smart trigger check
+      if: inputs.smart-trigger == 'true' && inputs.review == 'true' && github.event_name == 'pull_request'
+      id: smart-trigger
+      shell: bash
+      run: |
+        SKIP_REVIEW="false"
+
+        if [ -f "${{ runner.temp }}/changed-files.txt" ]; then
+          # Check if ALL changed files are docs/tests/config
+          CODE_FILES=$(grep -vE '\.(md|txt|json|yml|yaml|toml|ini|cfg|conf|env|lock|log)$' "${{ runner.temp }}/changed-files.txt" | grep -vE '(test|spec|__tests__|__mocks__|\.test\.|\.spec\.|\.stories\.|README|LICENSE|CHANGELOG|\.github/)' | head -1 || true)
+
+          if [ -z "$CODE_FILES" ]; then
+            SKIP_REVIEW="true"
+            echo "All changed files are docs/tests/config — skipping AI review"
+          fi
+        fi
+
+        echo "skip_review=$SKIP_REVIEW" >> $GITHUB_OUTPUT
+
+    - name: Run Halo scan
+      id: scan
+      shell: bash
+      env:
+        HALO_LICENSE_KEY: ${{ env.HALO_LICENSE_KEY || '' }}
+      run: |
+        SCAN_PATH="${{ inputs.path }}"
+
+        # Diff-only: create temp directory with only changed files
+        if [ "${{ inputs.diff-only }}" == "true" ] && [ "${{ steps.changed.outputs.skip_diff }}" != "true" ] && [ -f "${{ runner.temp }}/changed-files.txt" ]; then
+          echo "Scanning only changed files (diff-only mode)"
+          SCAN_PATH="${{ runner.temp }}/halo-diff-scan"
+          mkdir -p "$SCAN_PATH"
+
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              DIR=$(dirname "$file")
+              mkdir -p "$SCAN_PATH/$DIR"
+              cp "$file" "$SCAN_PATH/$file"
+            fi
+          done < "${{ runner.temp }}/changed-files.txt"
+        fi
+
+        SCAN_ARGS="$SCAN_PATH"
+        SCAN_ARGS="$SCAN_ARGS --format json --output ${{ runner.temp }}/halo-results.json"
+
+        # Add pack flag
+        if [ -n "${{ inputs.pack }}" ]; then
+          SCAN_ARGS="$SCAN_ARGS --pack ${{ inputs.pack }}"
+        fi
+
+        # Add framework override
+        if [ -n "${{ inputs.framework }}" ]; then
+          SCAN_ARGS="$SCAN_ARGS --framework ${{ inputs.framework }}"
+        fi
+
+        # Add AI review (unless smart-trigger says skip)
+        if [ "${{ inputs.review }}" == "true" ] && [ "${{ steps.smart-trigger.outputs.skip_review }}" != "true" ]; then
+          SCAN_ARGS="$SCAN_ARGS --review-board"
+        fi
+
+        # Map severity-threshold
+        case "${{ inputs.severity-threshold }}" in
+          critical) SCAN_ARGS="$SCAN_ARGS --severity critical" ;;
+          high)     SCAN_ARGS="$SCAN_ARGS --severity critical high" ;;
+          medium)   SCAN_ARGS="$SCAN_ARGS --severity critical high medium" ;;
+          low|*)    ;; # Show all
+        esac
+
+        # License key
+        if [ -n "$HALO_LICENSE_KEY" ]; then
+          SCAN_ARGS="$SCAN_ARGS --license-key $HALO_LICENSE_KEY"
+        fi
+
+        echo "Running: npx runhalo scan $SCAN_ARGS"
+        npx runhalo scan $SCAN_ARGS --no-prompt || true
+
+        # Parse results
+        if [ -f "${{ runner.temp }}/halo-results.json" ]; then
+          TOTAL=$(jq -r '.totalViolations // 0' "${{ runner.temp }}/halo-results.json")
+          CRITICAL=$(jq '[.results[]?.violations[]? | select(.severity == "critical")] | length' "${{ runner.temp }}/halo-results.json")
+          HIGH=$(jq '[.results[]?.violations[]? | select(.severity == "high")] | length' "${{ runner.temp }}/halo-results.json")
+          MEDIUM=$(jq '[.results[]?.violations[]? | select(.severity == "medium")] | length' "${{ runner.temp }}/halo-results.json")
+          LOW=$(jq '[.results[]?.violations[]? | select(.severity == "low")] | length' "${{ runner.temp }}/halo-results.json")
+          SCORE=$(jq -r '.score // 100' "${{ runner.temp }}/halo-results.json")
+          GRADE=$(jq -r '.grade // "A"' "${{ runner.temp }}/halo-results.json")
+        else
+          TOTAL=0
+          CRITICAL=0
+          HIGH=0
+          MEDIUM=0
+          LOW=0
+          SCORE=100
+          GRADE="A"
+        fi
+
+        # Resolve tier
+        TIER="free"
+        if [ -n "$HALO_LICENSE_KEY" ]; then
+          # Parse tier from key format: halo_{tier}_{id}
+          TIER=$(echo "$HALO_LICENSE_KEY" | grep -oP 'halo_\K(free|pro|business|enterprise)' || echo "pro")
+        fi
+
+        echo "violations=$TOTAL" >> $GITHUB_OUTPUT
+        echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+        echo "high=$HIGH" >> $GITHUB_OUTPUT
+        echo "medium=$MEDIUM" >> $GITHUB_OUTPUT
+        echo "low=$LOW" >> $GITHUB_OUTPUT
+        echo "score=$SCORE" >> $GITHUB_OUTPUT
+        echo "grade=$GRADE" >> $GITHUB_OUTPUT
+        echo "tier=$TIER" >> $GITHUB_OUTPUT
+        echo "report-path=${{ runner.temp }}/halo-results.json" >> $GITHUB_OUTPUT
+
+        # Determine pass/fail
+        FAIL_ON="${{ inputs.fail-on }}"
+        PASSED="true"
+        if [ "$FAIL_ON" == "critical" ] && [ "$CRITICAL" -gt 0 ]; then PASSED="false"; fi
+        if [ "$FAIL_ON" == "high" ] && [ "$((CRITICAL + HIGH))" -gt 0 ]; then PASSED="false"; fi
+        if [ "$FAIL_ON" == "medium" ] && [ "$TOTAL" -gt 0 ]; then PASSED="false"; fi
+        if [ "$FAIL_ON" == "low" ] && [ "$TOTAL" -gt 0 ]; then PASSED="false"; fi
+        echo "scan-passed=$PASSED" >> $GITHUB_OUTPUT
+
+    # PR annotations: inline comments on violation lines
+    - name: Annotate violations
+      if: inputs.pr-annotations == 'true' && steps.scan.outputs.violations != '0'
+      shell: bash
+      run: |
+        if [ -f "${{ runner.temp }}/halo-results.json" ]; then
+          jq -r '.results[]? | .file as $file | .violations[]? | "\($file):\(.line // 1):\(.severity | ascii_upcase): [\(.ruleId)] \(.message | split("\n")[0])"' \
+            "${{ runner.temp }}/halo-results.json" | while IFS=: read -r file line level msg; do
+            # Map severity to GitHub annotation level
+            case "$level" in
+              CRITICAL|HIGH) echo "::error file=$file,line=$line::$msg" ;;
+              MEDIUM)        echo "::warning file=$file,line=$line::$msg" ;;
+              LOW)           echo "::notice file=$file,line=$line::$msg" ;;
+            esac
+          done
+        fi
+
+    # SARIF generation and upload
+    - name: Generate SARIF
+      if: inputs.upload-sarif == 'true'
+      shell: bash
+      run: |
+        SARIF_ARGS="${{ inputs.path }} --format sarif --output ${{ runner.temp }}/halo-results.sarif"
+        if [ -n "${{ inputs.pack }}" ]; then
+          SARIF_ARGS="$SARIF_ARGS --pack ${{ inputs.pack }}"
+        fi
+        npx runhalo scan $SARIF_ARGS --no-prompt --offline || true
+
+    - name: Upload SARIF
+      if: inputs.upload-sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ runner.temp }}/halo-results.sarif
+        category: halo-audit
+      continue-on-error: true
+
+    # PR Comment with scan summary + COPPA countdown
+    - name: Post PR comment
+      if: inputs.pr-comment == 'true' && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const violations = parseInt('${{ steps.scan.outputs.violations }}') || 0;
+          const critical = parseInt('${{ steps.scan.outputs.critical }}') || 0;
+          const high = parseInt('${{ steps.scan.outputs.high }}') || 0;
+          const medium = parseInt('${{ steps.scan.outputs.medium }}') || 0;
+          const low = parseInt('${{ steps.scan.outputs.low }}') || 0;
+          const score = '${{ steps.scan.outputs.score }}';
+          const grade = '${{ steps.scan.outputs.grade }}';
+          const passed = '${{ steps.scan.outputs.scan-passed }}' === 'true';
+          const tier = '${{ steps.scan.outputs.tier }}';
+          const diffOnly = '${{ inputs.diff-only }}' === 'true';
+          const reviewEnabled = '${{ inputs.review }}' === 'true';
+          const smartSkipped = '${{ steps.smart-trigger.outputs.skip_review }}' === 'true';
+
+          // COPPA 2.0 countdown
+          const enforcement = new Date('2026-04-22T00:00:00Z');
+          const now = new Date();
+          const daysLeft = Math.max(0, Math.ceil((enforcement - now) / 86400000));
+          const coppaActive = daysLeft === 0;
+
+          // Status emoji
+          const statusEmoji = passed ? '✅' : '🚨';
+          const gradeEmoji = grade === 'A' ? '🟢' : grade === 'B' ? '🟡' : grade === 'C' ? '🟠' : '🔴';
+
+          let body = `## ${statusEmoji} Halo Compliance Scan\n\n`;
+          body += `| Metric | Value |\n|--------|-------|\n`;
+          body += `| Grade | ${gradeEmoji} **${grade}** (${score}/100) |\n`;
+          body += `| Total Findings | **${violations}** |\n`;
+
+          if (violations > 0) {
+            body += `| Critical | ${critical > 0 ? '🔴 ' : ''}${critical} |\n`;
+            body += `| High | ${high > 0 ? '🟠 ' : ''}${high} |\n`;
+            body += `| Medium | ${medium} |\n`;
+            body += `| Low | ${low} |\n`;
+          }
+
+          if (diffOnly) {
+            body += `| Scan Mode | 📂 Changed files only |\n`;
+          }
+
+          if (reviewEnabled && !smartSkipped) {
+            body += `| AI Review | ✅ Enabled |\n`;
+          } else if (smartSkipped) {
+            body += `| AI Review | ⏭️ Skipped (docs/tests/config only) |\n`;
+          }
+
+          body += `| Status | ${passed ? '✅ Passed' : '🚨 **Failed** — violations exceed threshold'} |\n\n`;
+
+          // Tier-specific messaging
+          if (tier === 'free' && violations > 0) {
+            body += `> 💡 **${violations} potential findings detected.** Free tier uses regex pattern matching only.\n`;
+            body += `> Upgrade to Pro ($29/mo) for AI-verified results that filter false positives → [runhalo.dev/pricing](https://runhalo.dev/pricing)\n\n`;
+          }
+
+          // COPPA 2.0 Countdown — every PR comment, every tier
+          body += `---\n`;
+          if (coppaActive) {
+            body += `> ⚠️ **COPPA 2.0 is NOW IN EFFECT**\n`;
+          } else {
+            body += `> ⚠️ **COPPA 2.0 enforcement begins April 22, 2026 — ${daysLeft} day${daysLeft === 1 ? '' : 's'}**\n`;
+          }
+          body += `> Maximum penalty: $53,088 per violation per day\n`;
+          body += `> Run \`npx @runhalo/cli scan . --review\` for AI-verified compliance check\n`;
+
+          // Find existing comment to update (don't spam)
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const botComment = comments.find(c =>
+            c.body.includes('Halo Compliance Scan') && c.user.type === 'Bot'
+          );
+
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+          }
+
+    # Exit with failure if scan didn't pass
+    - name: Check threshold
+      if: steps.scan.outputs.scan-passed == 'false'
+      shell: bash
+      run: |
+        echo "::error::Halo scan failed — violations exceed the '${{ inputs.fail-on }}' threshold"
+        exit 1

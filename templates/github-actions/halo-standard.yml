@@ -1,0 +1,76 @@
+# Halo COPPA 2.0 Scan — Standard
+# Scans PRs for COPPA risks with severity-based pass/fail.
+# Only triggers when code files change. Caches npm for speed.
+#
+# Copy this file to: .github/workflows/halo.yml
+# More info: https://runhalo.dev
+
+name: Halo COPPA Scan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**.ts'
+      - '**.tsx'
+      - '**.js'
+      - '**.jsx'
+      - '**.py'
+      - '**.swift'
+      - '**.html'
+      - '**.php'
+      - '**.kt'
+      - '**.java'
+      - '**.cs'
+      - '**.cpp'
+      - '**.vue'
+      - '**.svelte'
+
+jobs:
+  halo:
+    runs-on: ubuntu-latest
+    name: COPPA Risk Scan
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Halo
+        run: npm install @runhalo/cli
+
+      - name: Run scan
+        id: scan
+        run: |
+          npx runhalo scan . --format json --output halo-results.json || true
+          npx runhalo scan . --format sarif --output halo-results.sarif || true
+          VIOLATIONS=$(cat halo-results.json | jq -r '.totalViolations // 0')
+          echo "violations=$VIOLATIONS" >> $GITHUB_OUTPUT
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: halo-results.sarif
+          category: halo-coppa
+        continue-on-error: true
+
+      - name: Check for critical violations
+        if: steps.scan.outputs.violations != '0'
+        run: |
+          CRITICAL=$(cat halo-results.json | jq '[.results[]?.violations[]? | select(.severity == "critical")] | length')
+          HIGH=$(cat halo-results.json | jq '[.results[]?.violations[]? | select(.severity == "high")] | length')
+          echo "Found: $CRITICAL critical, $HIGH high severity issues"
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "::error::$CRITICAL critical COPPA issue(s) found — merge blocked"
+            exit 1
+          fi
+          if [ "$HIGH" -gt 0 ]; then
+            echo "::warning::$HIGH high severity COPPA issue(s) — review recommended"
+          fi

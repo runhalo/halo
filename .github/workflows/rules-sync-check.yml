@@ -1,0 +1,65 @@
+name: Rules.json Sync Check
+
+on:
+  pull_request:
+    paths:
+      - 'packages/engine/rules/rules.json'
+      - 'supabase/functions/scan-repo/rules.json'
+      - 'supabase/functions/compute-compliance-score/rules.json'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/engine/rules/rules.json'
+      - 'supabase/functions/scan-repo/rules.json'
+      - 'supabase/functions/compute-compliance-score/rules.json'
+
+jobs:
+  check-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify all 3 rules.json copies are identical
+        run: |
+          echo "Checking rules.json sync across 3 locations..."
+          diff packages/engine/rules/rules.json supabase/functions/scan-repo/rules.json || {
+            echo "❌ FAIL: scan-repo/rules.json differs from engine/rules.json"
+            echo "Run: npm run sync-rules"
+            exit 1
+          }
+          diff packages/engine/rules/rules.json supabase/functions/compute-compliance-score/rules.json || {
+            echo "❌ FAIL: compute-compliance-score/rules.json differs from engine/rules.json"
+            echo "Run: npm run sync-rules"
+            exit 1
+          }
+          echo "✅ All 3 copies are identical"
+
+  check-cache-version:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check scoring changes require cache version bump
+        run: |
+          SCORING_FILES="supabase/functions/upload-scan/index.ts supabase/functions/scan-repo/index.ts supabase/functions/compute-compliance-score/index.ts supabase/functions/_shared/scoring.ts"
+          CHANGED=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
+          SCORING_CHANGED=false
+          for f in $SCORING_FILES; do
+            if echo "$CHANGED" | grep -q "$f"; then
+              if git diff origin/main...HEAD -- "$f" | grep -E '^\+.*SEVERITY_WEIGHTS|^\+.*critical.*=[[:space:]]*[0-9]|^\+.*OPTION_C|^\+.*floor.*rule' | head -1 > /dev/null 2>&1; then
+                SCORING_CHANGED=true
+              fi
+            fi
+          done
+          if [ "$SCORING_CHANGED" = "true" ]; then
+            VERSION_CHANGED=$(git diff origin/main...HEAD | grep -c '^\+.*SCHEMA_VERSION\|^\+.*CACHE_VERSION\|^\+.*scoring_version' || true)
+            if [ "$VERSION_CHANGED" = "0" ]; then
+              echo "❌ FAIL: Scoring logic changed but no cache version bump detected."
+              echo "Update SCHEMA_VERSION or CACHE_VERSION in the affected function."
+              exit 1
+            fi
+            echo "✅ Scoring changed AND cache version bumped."
+          else
+            echo "✅ No scoring logic changes detected."
+          fi

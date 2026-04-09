@@ -1,0 +1,16 @@
+src/
+**/*.ts
+!dist/**
+!**/*.d.ts
+jest.config.cjs
+tsconfig.json
+**/__tests__/
+node_modules/
+.gitignore
+.git/
+*.map
+**/.DS_Store
+**/.env
+**/.env.*
+../**
+../../**
