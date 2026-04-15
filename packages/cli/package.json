@@ -1,0 +1,63 @@
+{
+  "name": "@runhalo/cli",
+  "version": "1.3.1",
+  "description": "Halo CLI -- COPPA compliance scanner for children's apps. Scan any codebase for COPPA violations.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "runhalo": "dist/index.js"
+  },
+  "files": [
+    "dist/index.js",
+    "dist/index.js.map",
+    "dist/index.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "prebuild": "cd ../engine && npm run build",
+    "build": "tsc",
+    "test": "jest --config jest.config.cjs",
+    "scan": "node dist/index.js scan"
+  },
+  "keywords": [
+    "coppa",
+    "coppa-2",
+    "privacy",
+    "child-safety",
+    "children",
+    "compliance",
+    "age-verification",
+    "cli",
+    "scanner",
+    "linter",
+    "ai-review"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/runhalo/halo.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://runhalo.dev",
+  "bugs": {
+    "url": "https://github.com/runhalo/halo/issues"
+  },
+  "author": "Mindful Media <hello@mindfulmedia.org> (https://mindfulmedia.org)",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@runhalo/engine": "^1.0.0",
+    "commander": "^11.1.0",
+    "glob": "^10.3.10",
+    "pdfkit": "^0.17.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.10.0",
+    "@types/pdfkit": "^0.17.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.3.3"
+  }
+}

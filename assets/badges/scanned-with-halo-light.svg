@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="28" viewBox="0 0 180 28" fill="none">
+  <rect width="180" height="28" rx="6" fill="#ffffff"/>
+  <rect x="0.5" y="0.5" width="179" height="27" rx="5.5" stroke="#e2e8f0"/>
+  <!-- Halo ring icon -->
+  <circle cx="16" cy="14" r="6" stroke="#7c3aed" stroke-width="1.8" fill="none"/>
+  <circle cx="16" cy="14" r="2.5" fill="#7c3aed" opacity="0.5"/>
+  <!-- Text -->
+  <text x="28" y="17.5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#374151" font-weight="500">scanned with</text>
+  <text x="108" y="17.5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" fill="#7c3aed" font-weight="700">Halo</text>
+</svg>

@@ -1,0 +1,1767 @@
+{
+  "version": "1.3.1",
+  "generated_at": "2026-04-14",
+  "packs": {
+    "coppa": {
+      "id": "coppa",
+      "name": "COPPA 2.0 Core",
+      "description": "26 rules for COPPA & COPPA 2.0 compliance. Effective April 22, 2026. Updated March 12, 2026 for 2025 final rule amendments.",
+      "jurisdiction": "US-Federal",
+      "jurisdiction_level": "federal",
+      "is_free": true,
+      "effective_date": "2026-04-22",
+      "source_url": "https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312"
+    }
+  },
+  "rules": [
+    {
+      "id": "coppa-auth-001",
+      "name": "PI Collection Via Third-Party Authentication Without VPC",
+      "severity": "critical",
+      "confidence": "low",
+      "category": "auth",
+      "description": "Social login (Google, Facebook, Twitter) without age gating is prohibited for child-directed apps",
+      "patterns": [
+        {
+          "pattern": "signInWithPopup\\s*\\(\\s*\\w+\\s*,\\s*['\"](google|facebook|twitter|github)['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "signInWithPopup\\s*\\(\\s*['\"](google|facebook|twitter|github)['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "signInWithPopup\\s*\\(\\s*\\w+\\s*,\\s*\\w+\\s*\\)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "firebase\\.auth\\(\\)\\s*\\.\\s*signInWithPopup",
+          "flags": "gi"
+        },
+        {
+          "pattern": "passport\\.authenticate\\s*\\(\\s*['\"](google|facebook|twitter)['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "SOCIALACCOUNT_PROVIDERS\\s*=\\s*\\{[^}]*(?:google|facebook|twitter|github)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "SOCIAL_AUTH_(?:GOOGLE|FACEBOOK|TWITTER|GITHUB)_(?:KEY|SECRET)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "make_(?:google|facebook|twitter|github)_blueprint\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "oauth\\.register\\s*\\(\\s*['\"](?:google|facebook|twitter|github)['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "goth\\.UseProviders\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "\\.oauth2Login\\s*\\(\\s*\\)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "ClientRegistration\\.withRegistrationId\\s*\\(\\s*['\"](?:google|facebook|twitter|github)['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "Firebase\\.auth\\.signInWithCredential",
+          "flags": "gi"
+        },
+        {
+          "pattern": "GoogleSignIn\\.getClient\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "LoginManager\\.getInstance\\s*\\(\\s*\\)\\s*\\.logIn",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Wrap the auth call in a conditional check for user.age >= 13 or use signInWithParentEmail() for children",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "go",
+        "java",
+        "kotlin",
+        "swift"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "age-gate-auth",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-data-002",
+      "name": "PII Collection in URL Parameters",
+      "severity": "high",
+      "confidence": "medium",
+      "category": "data",
+      "description": "Email, name, DOB, or phone in GET request URLs exposes PII in logs",
+      "patterns": [
+        {
+          "pattern": "(?<!(?:test|spec|mock|fixture|example|__test__|__mock__|__fixture__)[^\\n]{0,50})(\\?|&)(email|first_?name|last_?name|dob|phone|birthdate)=",
+          "flags": "gi"
+        },
+        {
+          "pattern": "axios\\.get\\s*\\(\\s*[`'\"]https?://[^\\s]*\\?[^`'\"]*(?:email|first_?name|last_?name|dob|phone|birthdate|birth_?date|ssn|username)=[^`'\"]*\\$\\{",
+          "flags": "gi"
+        },
+        {
+          "pattern": "fetch\\s*\\(\\s*[`'\"]https?://[^\\s]*\\?[^`'\"]*(?:email|first_?name|last_?name|dob|phone|birthdate|birth_?date|ssn|username)=[^`'\"]*\\$\\{",
+          "flags": "gi"
+        },
+        {
+          "pattern": "\\?[^'\"`\\s]*\\$\\{[^}]*(?:\\.email|\\.firstName|\\.lastName|\\.dob|\\.phone|\\.birthdate|\\.ssn)[^}]*\\}",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Switch to POST method and move PII to request body",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "java",
+        "swift"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "pii-sanitizer",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-tracking-003",
+      "name": "Third-Party Ad Trackers",
+      "severity": "critical",
+      "confidence": "low",
+      "category": "tracking",
+      "description": "Facebook Pixel, Google Analytics, or other ad trackers without child_directed_treatment flag",
+      "patterns": [
+        {
+          "pattern": "fbq\\s*\\(\\s*['\"]init['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "ga\\s*\\(\\s*['\"]create['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "adsbygoogle",
+          "flags": "gi"
+        },
+        {
+          "pattern": "gtag\\s*\\(\\s*['\"]config['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "google-analytics\\.com/analytics\\.js",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Add \"child_directed_treatment\": true or \"restrictDataProcessing\": true to SDK initialization",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "html"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "remove-tracker",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-geo-004",
+      "name": "Precise Geolocation Collection",
+      "severity": "high",
+      "confidence": "low",
+      "category": "geo",
+      "description": "High-accuracy geolocation without parental consent is prohibited",
+      "patterns": [
+        {
+          "pattern": "navigator\\.geolocation\\.getCurrentPosition",
+          "flags": "gi"
+        },
+        {
+          "pattern": "navigator\\.geolocation\\.watchPosition",
+          "flags": "gi"
+        },
+        {
+          "pattern": "CLLocationManager\\.startUpdatingLocation\\(\\)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "locationServices\\.requestLocation",
+          "flags": "gi"
+        },
+        {
+          "pattern": "LocationManager\\s*\\.\\s*requestLocationUpdates\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "FusedLocationProviderClient|fusedLocationClient\\s*\\.\\s*(?:requestLocationUpdates|getLastLocation|getCurrentLocation)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "LocationRequest\\.create\\s*\\(\\s*\\)\\s*\\.\\s*setPriority\\s*\\(\\s*LocationRequest\\.PRIORITY_HIGH_ACCURACY",
+          "flags": "gi"
+        },
+        {
+          "pattern": "LocationRequest\\.Builder\\s*\\(\\s*Priority\\.PRIORITY_HIGH_ACCURACY",
+          "flags": "gi"
+        },
+        {
+          "pattern": "geocoder\\.(?:ip|google|osm|mapquest)\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:Nominatim|GoogleV3|Bing)\\s*\\([^)]*\\)\\s*\\.(?:geocode|reverse)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "android\\.permission\\.ACCESS_FINE_LOCATION",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Downgrade accuracy to kCLLocationAccuracyThreeKilometers or require parental consent",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "swift",
+        "kotlin",
+        "java",
+        "python",
+        "xml"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "remove-geo",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-retention-005",
+      "name": "Missing Data Lifecycle Management",
+      "severity": "medium",
+      "confidence": "medium",
+      "category": "retention",
+      "description": "COPPA 2025 explicitly prohibits indefinite retention of children's PI. Operators must retain data only as long as reasonably necessary for the purpose collected. Schemas with PII fields must define retention periods, deletion mechanisms, and purpose limitation.",
+      "patterns": [
+        {
+          "pattern": "new\\s+Schema\\s*\\(\\s*\\{[^{}]*(?:email|password|username|phone|dob|birth|firstName|lastName|first_name|last_name|fullName|full_name|displayName|display_name|address|ssn)[^{}]*\\}",
+          "flags": "gi"
+        },
+        {
+          "pattern": "class\\s+(?:User|Child|Student|Profile|Account|Member)\\w*\\s*\\(\\s*models\\.Model\\s*\\)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "class\\s+(?:User|Child|Student|Profile|Account|Member)\\w*\\s*\\(\\s*(?:Base|db\\.Model)\\s*\\)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "type\\s+(?:User|Child|Student|Profile|Account|Member)\\w*\\s+struct\\s*\\{",
+          "flags": "gi"
+        },
+        {
+          "pattern": "@Entity[\\s\\S]*?class\\s+(?:User|Child|Student|Profile|Account|Member)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "data\\s+class\\s+(?:User|Child|Student|Profile|Account|Member)\\w*\\s*\\(",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Add explicit retention period (retentionDays, expiresAt, or TTL index), deleted_at column, and document the purpose limitation for data collection per COPPA 2025 \u00a7 312.10",
+      "penalty": "$53,088 per violation (COPPA 2025 indefinite retention prohibition)",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "go",
+        "java",
+        "kotlin",
+        "sql"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "retention-policy",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "advisory"
+    },
+    {
+      "id": "coppa-sec-006",
+      "name": "Unencrypted PII Transmission",
+      "severity": "critical",
+      "confidence": "medium",
+      "category": "security",
+      "description": "HTTP transmission of PII exposes data in transit. All API endpoints handling personal information must use HTTPS.",
+      "patterns": [
+        {
+          "pattern": "(?!.*(?:schemas\\.|w3\\.org|xmlns\\.|\\\\?\\.config|README|example\\.com|localhost|127\\.0\\.0|\\..test|\\..example|\\..invalid|\\..local|specification|documentation|comment|\\/\\/\\s))http://(?!localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::1\\]|10\\.|192\\.168\\.|172\\.(?:1[6-9]|2[0-9]|3[01]))[^\\s]*(/api/|/login|/user|/register|/profile)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?!.*(?:schemas\\.|w3\\.org|xmlns\\.|\\\\?\\.config|README|example\\.com|localhost|127\\.0\\.0|\\..test|\\..example|\\..invalid|\\..local|specification|documentation|comment|\\/\\/\\s))axios\\.get\\s*\\(\\s*['\"]http://(?!localhost|127\\.0\\.0\\.1)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?!.*(?:schemas\\.|w3\\.org|xmlns\\.|\\\\?\\.config|README|example\\.com|localhost|127\\.0\\.0|\\..test|\\..example|\\..invalid|\\..local|specification|documentation|comment|\\/\\/\\s))fetch\\s*\\(\\s*['\"]http://(?!localhost|127\\.0\\.0\\.1)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?!.*(?:schemas\\.|w3\\.org|xmlns\\.|\\\\?\\.config|README|example\\.com|localhost|127\\.0\\.0|\\..test|\\..example|\\..invalid|\\..local|specification|documentation|comment|\\/\\/\\s))http://(?!localhost|127\\.0\\.0\\.1)[^\\s]*email[^\\s]*",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Replace http:// with https:// for all API endpoints and resources",
+      "penalty": "Security breach liability + COPPA penalties",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "java",
+        "swift"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "auto",
+      "transform_type": "url-upgrade",
+      "scaffold_id": null,
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-audio-007",
+      "name": "Unauthorized Audio Recording",
+      "severity": "high",
+      "confidence": "low",
+      "category": "audio",
+      "description": "Audio recording without explicit user consent is prohibited. COPPA 2.0 clarifies voice prints as biometric data.",
+      "patterns": [
+        {
+          "pattern": "getUserMedia\\s*\\(\\s*\\{[^}]*audio\\s*:\\s*true[^}]*\\}",
+          "flags": "gi"
+        },
+        {
+          "pattern": "getUserMedia\\s*\\(\\s*\\{\\s*audio\\s*\\}",
+          "flags": "gi"
+        },
+        {
+          "pattern": "getUserMedia\\s*\\(\\s*\\{\\s*audio\\s*,",
+          "flags": "gi"
+        },
+        {
+          "pattern": "AVAudioSession\\s*\\.\\s*sharedInstance",
+          "flags": "gi"
+        },
+        {
+          "pattern": "AVAudioRecorder\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "new\\s+AudioRecord\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "new\\s+MediaRecorder\\s*\\(",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Wrap audio recording in click handler and add parental consent check",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "swift",
+        "kotlin"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "consent-audio",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "behavior",
+      "visualVerification": true,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-ui-008",
+      "name": "Missing Privacy Policy on Registration",
+      "severity": "medium",
+      "confidence": "medium",
+      "category": "ui",
+      "description": "Registration forms collecting PII must include a clear link to the privacy policy",
+      "patterns": [
+        {
+          "pattern": "(?!.*(?:admin|Admin|ADMIN|educator|Educator|instructor|teacher|oauth|OAuth|lti|LTI|saml|SAML|sso|SSO|staff|moderator|enrollment|grading|assignment|syllabus|cartridge|yui|superclass|brickfield|sitepolicy|confirmation|FormattedMessage))(?<!(?:interface|type|import|from|require|mock|Mock|jest\\.fn)\\s{0,10})\\b(?!Admin|Teacher|Staff|Instructor|Educator|Parent|Guardian)(?:SignUp|Register|Registration|CreateAccount)Form\\b(?!\\s*(?:\\{|<|\\||&|extends|implements))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?!.*(?:admin|Admin|ADMIN|educator|Educator|instructor|teacher|oauth|OAuth|lti|LTI|saml|SAML|sso|SSO|staff|moderator|enrollment|grading|assignment|syllabus|cartridge|yui|superclass|brickfield|sitepolicy|confirmation|FormattedMessage))(?<!(?:import|from|require|mock|type|interface)\\s{0,10})\\b(?!admin[-_]?|teacher[-_]?|staff[-_]?|instructor[-_]?|parent[-_]?)(?:sign[-_]?up|register|registration|create[-_]?account)[-_]form\\b(?!\\s*(?:type|interface|schema))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?!.*(?:admin|Admin|ADMIN|educator|Educator|instructor|teacher|oauth|OAuth|lti|LTI|saml|SAML|sso|SSO|staff|moderator|enrollment|grading|assignment|syllabus|cartridge|yui|superclass|brickfield|sitepolicy|confirmation|FormattedMessage))<form[^>]*(?:id|class|name)\\s*=\\s*[\"'][^\"']*(?!admin|teacher|staff|instructor|educator|parent|guardian)(?:register|signup|sign[-_]up|create[-_]account)[^\"']*[\"']",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Add <a href=\"/privacy\">Privacy Policy</a> link to registration form footer",
+      "penalty": "Compliance failure",
+      "languages": [
+        "typescript",
+        "javascript",
+        "html",
+        "tsx",
+        "jsx",
+        "php"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "privacy-link",
+      "guidance_url": null,
+      "compliance_determining": false,
+      "knowledge": {},
+      "detectionModality": "behavior",
+      "visualVerification": true,
+      "architectureDependent": true,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-flow-009",
+      "name": "PII Collection From Children Without VPC Flow",
+      "severity": "high",
+      "confidence": "high",
+      "category": "flow",
+      "description": "Forms collecting child email/phone must also require parent email for consent verification",
+      "patterns": [
+        {
+          "pattern": "(child_email|student_email)\\s*:\\s*String",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(child_email|student_email|kid_email)\\s*=",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Make parent_email required when collecting child contact information",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "parent-email",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "behavior",
+      "visualVerification": true,
+      "requiresUserInput": true,
+      "userInputTier": 3,
+      "questionTemplate": {
+        "trigger": "contact_collection_detected",
+        "questions": [
+          {
+            "id": "q1",
+            "text": "We detected contact information collection (email/phone) in {filePath}. Is this form used by children under 13?",
+            "type": "yes_no",
+            "verdictMap": {
+              "yes": {
+                "verdict": "needs_followup",
+                "nextQuestion": "q2"
+              },
+              "no": {
+                "verdict": "dismissed",
+                "confidence": 0.85,
+                "reason": "Form not used by children under 13 \u2014 COPPA contact collection rules do not apply"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain whether children access this form. Recommend age-gate analysis."
+              }
+            }
+          },
+          {
+            "id": "q2",
+            "text": "Before collecting this contact information, does your app verify the parent's identity through a separate consent flow?",
+            "type": "yes_no",
+            "verdictMap": {
+              "yes": {
+                "verdict": "dismissed",
+                "confidence": 0.9,
+                "reason": "Parental identity verified before contact collection \u2014 compliant"
+              },
+              "no": {
+                "verdict": "needs_followup",
+                "nextQuestion": "q3"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain about consent flow. Recommend flow audit."
+              }
+            }
+          },
+          {
+            "id": "q3",
+            "text": "Is the collected contact information used only to obtain parental consent, and deleted if consent is not received?",
+            "type": "yes_no",
+            "verdictMap": {
+              "yes": {
+                "verdict": "dismissed",
+                "confidence": 0.85,
+                "reason": "Contact info used only for consent purpose with deletion \u2014 compliant with COPPA exception"
+              },
+              "no": {
+                "verdict": "confirmed",
+                "confidence": 0.9,
+                "reason": "Contact info retained beyond consent purpose \u2014 COPPA requires deletion if consent not obtained"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain about data retention. Recommend data flow audit."
+              }
+            }
+          }
+        ]
+      },
+      "architectureDependent": true,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-sec-010",
+      "name": "Weak Default Student Passwords",
+      "severity": "medium",
+      "confidence": "high",
+      "category": "security",
+      "description": "Default passwords like \"password\", \"123456\", or \"changeme\" create security vulnerabilities",
+      "patterns": [
+        {
+          "pattern": "(?:const|let|var|export|config|env|setting)\\s*(?:\\w+\\s*=\\s*\\{[^}]*?)?(password|default_pass|temp_password)\\s*[:=]\\s*['\"](123456|password|changeme|student|welcome)['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "defaultPassword:\\s*['\"](123456|password|changeme)['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "initialPassword:\\s*['\"](123456|password)['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:const|let|var|config)\\s*\\w*[Pp]ass\\w*\\s*=\\s*['\"](student123|child123|default)['\"]",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Use a secure random string generator for temporary credentials",
+      "penalty": "Security audit failure",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "java",
+        "swift"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "auto",
+      "transform_type": "remove-default",
+      "scaffold_id": null,
+      "guidance_url": null,
+      "compliance_determining": false,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-ext-011",
+      "name": "Unmoderated Third-Party Chat",
+      "severity": "high",
+      "confidence": "medium",
+      "category": "external",
+      "description": "Third-party chat widgets (Intercom, Zendesk, Drift) allow children to disclose PII freely",
+      "patterns": [
+        {
+          "pattern": "intercom\\.init",
+          "flags": "gi"
+        },
+        {
+          "pattern": "zendesk\\.init",
+          "flags": "gi"
+        },
+        {
+          "pattern": "drift\\.init",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?!.*(?:help\\.|support\\.|docs\\.|faq|knowledge.?base|status\\.))<script[^>]+src=['\"][^'\"]*intercom",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?!.*(?:help\\.|support\\.|docs\\.|faq|knowledge.?base|status\\.))<script[^>]+src=['\"][^'\"]*(zendesk|zdassets)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?!.*(?:help\\.|zendesk\\.com\\/hc|freshdesk\\.com\\/support|support\\.|docs\\.|faq|knowledge.?base|status\\.))(?:Freshdesk|FreshChat)",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Disable chat widget for unauthenticated or under-13 users via conditional rendering",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "html"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "chat-moderation",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-bio-012",
+      "name": "Biometric Data Collection",
+      "severity": "critical",
+      "confidence": "medium",
+      "category": "biometric",
+      "description": "COPPA 2025 explicitly adds biometric identifiers to the definition of PI. Face recognition, voice prints, gait analysis, behavioral biometrics (keystroke dynamics, mouse movement patterns), iris/pupil scanning, and health biometric APIs all require verifiable parental consent.",
+      "patterns": [
+        {
+          "pattern": "(?:import\\s+.*from\\s+['\"]face-api\\.js['\"]|require\\s*\\(\\s*['\"]face-api\\.js['\"]\\s*\\))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "LocalAuthentication.*evaluatePolicy",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:biometricAuth|BiometricAuth|biometricPrompt|BiometricPrompt)",
+          "flags": "g"
+        },
+        {
+          "pattern": "voicePrint|VoicePrint|voiceRecognition|VoiceRecognition|speakerVerification",
+          "flags": "g"
+        },
+        {
+          "pattern": "livenessCheck|LivenessCheck|livenessDetection",
+          "flags": "g"
+        },
+        {
+          "pattern": "FaceMatcher|FaceDetector|FaceRecognizer|FaceLandmarks",
+          "flags": "g"
+        },
+        {
+          "pattern": "keystrokeDynamic|keystrokePattern|typingBiometric|keyPressAnalysis",
+          "flags": "g"
+        },
+        {
+          "pattern": "gaitAnalysis|gaitDetect|gaitRecognition|motionBiometric",
+          "flags": "g"
+        },
+        {
+          "pattern": "mouseMovementPattern|cursorTracking|behavioralBiometric",
+          "flags": "g"
+        },
+        {
+          "pattern": "irisScann?|pupilDetect|eyeTracking|gazeTracking",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:HKHealthStore|HKQuantityType|HealthKit).*(?:heartRate|stepCount|workout|sleep)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:GoogleFit|FitnessOptions|HistoryClient).*(?:heartRate|steps|calories|sleep)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:import|require).*(?:face-api|@mediapipe\\/face|@tensorflow\\/tfjs-models\\/face|deepface|insightface)",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Ensure biometric data remains local-only (on-device) or obtain verifiable parental consent per COPPA 2025. Do not transmit biometric identifiers to servers without separate parental consent.",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "swift",
+        "kotlin",
+        "python",
+        "java"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "consent-biometric",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "guidance"
+    },
+    {
+      "id": "coppa-notif-013",
+      "name": "Manipulative Push Notification Patterns",
+      "severity": "low",
+      "confidence": "low",
+      "category": "notification",
+      "description": "FTC declined to codify push notification restrictions in the 2025 final rule but stated it 'remains concerned about push notifications and other engagement techniques.' Best practice: gate push subscriptions behind parental consent. Maps to NGL Labs and Sendit enforcement patterns.",
+      "patterns": [
+        {
+          "pattern": "FirebaseMessaging\\.subscribeToTopic(?!.*(?:vendor|node_modules|\\.config|\\.json|manifest|package\\.json|bower|composer|Gemfile|requirements\\.txt|Cargo\\.toml|\\.lock))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "OneSignal\\.promptForPushNotifications(?!.*(?:vendor|node_modules|\\.config|\\.json|manifest|package\\.json|bower|composer|Gemfile|requirements\\.txt|Cargo\\.toml|\\.lock))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "sendPushNotification\\s*\\((?!.*(?:vendor|node_modules|\\.config|\\.json|manifest|package\\.json|bower|composer|Gemfile|requirements\\.txt|Cargo\\.toml|\\.lock))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "fcm\\.send\\s*\\((?!.*(?:vendor|node_modules|\\.config|\\.json|manifest|package\\.json|bower|composer|Gemfile|requirements\\.txt|Cargo\\.toml|\\.lock))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "PushManager\\.subscribe\\s*\\((?!.*(?:vendor|node_modules|\\.config|\\.json|manifest|package\\.json|bower|composer|Gemfile|requirements\\.txt|Cargo\\.toml|\\.lock))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "Notification\\.requestPermission(?!.*(?:vendor|node_modules|\\.config|\\.json|manifest|package\\.json|bower|composer|Gemfile|requirements\\.txt|Cargo\\.toml|\\.lock))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "new\\s+Notification\\s*\\((?!.*(?:vendor|node_modules|\\.config|\\.json|manifest|package\\.json|bower|composer|Gemfile|requirements\\.txt|Cargo\\.toml|\\.lock))",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Gate push notification subscription behind parental dashboard setting",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "swift",
+        "kotlin"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "consent-notif",
+      "guidance_url": null,
+      "compliance_determining": false,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "voluntary",
+      "pack": "ethical"
+    },
+    {
+      "id": "coppa-ugc-014",
+      "name": "UGC Upload Without PII Filter",
+      "severity": "high",
+      "confidence": "medium",
+      "category": "ugc",
+      "description": "Text areas for \"bio\", \"about me\", or comments must pass through PII scrubbing before database storage",
+      "patterns": [
+        {
+          "pattern": "<textarea[^>]*placeholder=[\"'](?:bio|about me|describe yourself)[^\"']*[\"']",
+          "flags": "gi"
+        },
+        {
+          "pattern": "user\\.bio\\s*=",
+          "flags": "gi"
+        },
+        {
+          "pattern": "aboutMe\\s*=",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:submit|save|post)Comment\\s*\\((?![^)]*(?:admin|moderate|internal|review))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:saveBio|updateBio)\\s*\\((?![^)]*(?:admin|moderate|internal))",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?<!admin|Admin|moderate|Moderate)(?:commentForm.*submit|handleCommentSubmit)",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Add middleware hook for PII scrubbing (regex or AWS Comprehend) before database storage",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "pii-filter",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-sec-015",
+      "name": "Reflected XSS Risk",
+      "severity": "medium",
+      "confidence": "medium",
+      "category": "security",
+      "description": "DangerouslySetInnerHTML or innerHTML with user-controlled content creates XSS vulnerabilities",
+      "patterns": [
+        {
+          "pattern": "dangerouslySetInnerHTML\\s*=\\s*\\{\\s*\\{\\s*__html\\s*:\\s*(?!['\"]<)(?!.*(?:sanitize|Sanitize|purify|Purify|DOMPurify|escape|Escape|clean|xss|JSON\\.stringify|sanitized\\w*|purified\\w*|escaped\\w*|cleaned\\w*|safeHtml))[^}]*\\}\\s*\\}",
+          "flags": "gi"
+        },
+        {
+          "pattern": "\\.innerHTML\\s*=\\s*\\$\\{",
+          "flags": "gi"
+        },
+        {
+          "pattern": "\\.innerHTML\\s*=\\s*(?!['\"]?\\s*['\"<]?\\s*;)(?!['\"]\\s*$)(?!\\s*['\"]\\s*$)(?!.*(?:[Ll]ocal(?:ize|ization)|styleContent|sanitize|Sanitize|purify|Purify|Escape\\.html|clean|xss|sanitized\\w*|purified\\w*|escaped\\w*|cleaned\\w*|safeHtml))[^;]*\\b(?:user[A-Z]\\w*|userInput|user_input|formData|query|param|req\\.|request\\.|body\\.|data\\.(?:value|content|body|html|text|detail|innerHTML))\\w*",
+          "flags": "gi"
+        },
+        {
+          "pattern": "\\.html\\s*\\(\\s*(?:userInput|user_input|req\\.|request\\.|params?\\.)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "v-html\\s*=\\s*[\"']?(?!.*(?:sanitize|purify|clean|escape|xss))(?:.*(?:userInput|user_input|user\\.input|formData|req\\.|request\\.|query\\.|rawHtml))",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Use standard JSX rendering or DOMPurify before setting HTML content. Note: vendor/bundled libraries may trigger this rule \u2014 use .haloignore to suppress.",
+      "penalty": "Security failure",
+      "languages": [
+        "typescript",
+        "javascript",
+        "tsx",
+        "jsx",
+        "vue"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "auto",
+      "transform_type": "sanitize-input",
+      "scaffold_id": null,
+      "guidance_url": null,
+      "compliance_determining": false,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "guidance"
+    },
+    {
+      "id": "coppa-cookies-016",
+      "name": "Missing Cookie Notice",
+      "severity": "low",
+      "confidence": "medium",
+      "category": "cookies",
+      "description": "Cookies or localStorage storing tracking data or PII requires a consent banner",
+      "patterns": [
+        {
+          "pattern": "document\\.cookie\\s*=\\s*[^;]*(?:user|email|name|token|session|track|id|uid|analytics)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "localStorage\\.setItem\\s*\\(\\s*['\"][^'\"]*(?:user_?id|user_?email|user_?token|auth_?token|session_?token|track_?id|tracking|login_?token|uid|analytics_?id|user_?data|user_?profile)[^'\"]*['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "sessionStorage\\.setItem\\s*\\(\\s*['\"][^'\"]*(?:user_?id|user_?email|user_?token|auth_?token|session_?token|track_?id|tracking|login_?token|uid|analytics_?id|user_?data|user_?profile)[^'\"]*['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "\\.set_cookie\\s*\\(\\s*['\"][^'\"]*(?:user|email|token|session|track|auth|login|uid|analytics)[^'\"]*['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "http\\.SetCookie\\s*\\(\\s*\\w+\\s*,\\s*&http\\.Cookie\\s*\\{",
+          "flags": "gi"
+        },
+        {
+          "pattern": "\\.addCookie\\s*\\(\\s*new\\s+Cookie\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "ResponseCookie\\.from\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:set_cookie|SetCookie|addCookie|add_cookie)\\s*\\([^)]*(?:user|email|token|session|track|auth|uid|analytics)",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Add a cookie consent banner component before setting tracking or PII cookies",
+      "penalty": "Compliance warning",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "go",
+        "java",
+        "kotlin"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "consent-cookies",
+      "guidance_url": null,
+      "compliance_determining": false,
+      "knowledge": {},
+      "detectionModality": "behavior",
+      "visualVerification": true,
+      "architectureDependent": true,
+      "authority_tier": "guidance"
+    },
+    {
+      "id": "coppa-ext-017",
+      "name": "Missing External Link Warning (Best Practice)",
+      "severity": "low",
+      "confidence": "medium",
+      "category": "external",
+      "description": "External links in child-facing views should trigger a \"You are leaving...\" modal",
+      "patterns": [
+        {
+          "pattern": "(?!.*(?:admin|Admin|ADMIN|educator|Educator|instructor|teacher|i18n|locale|translation|locales?\\/|lang\\/|messages\\.|translations\\.|bundle))<a[^>]+href=[\"']https?://(?!.*(?:privacy|terms|legal|tos|policy|consent|support|help|docs|documentation))[^\"']+[\"'][^>]*target=[\"']_blank[\"'][^>]*>",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?!.*(?:admin|Admin|ADMIN|educator|Educator|instructor|teacher|i18n|locale|translation|locales?\\/|lang\\/|messages\\.|translations\\.|bundle))window\\.open\\s*\\(\\s*['\"]https?://(?!.*(?:privacy|terms|legal|tos|policy|support|help|docs|documentation|faq|about))",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Wrap external links in SafeLink component with warning modal",
+      "penalty": "Warning",
+      "languages": [
+        "typescript",
+        "javascript",
+        "html",
+        "tsx",
+        "jsx"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "exit-modal",
+      "guidance_url": null,
+      "compliance_determining": false,
+      "knowledge": {},
+      "detectionModality": "design",
+      "visualVerification": true,
+      "authority_tier": "voluntary",
+      "pack": "ethical"
+    },
+    {
+      "id": "coppa-analytics-018",
+      "name": "Mapping PII to Analytics User IDs",
+      "severity": "high",
+      "confidence": "medium",
+      "category": "analytics",
+      "description": "Passing email, name, or phone to analytics.identify() exposes PII to third parties",
+      "patterns": [
+        {
+          "pattern": "analytics\\.identify\\s*\\([^)]*email",
+          "flags": "gi"
+        },
+        {
+          "pattern": "mixpanel\\.identify.*email",
+          "flags": "gi"
+        },
+        {
+          "pattern": "segment\\.identify.*email",
+          "flags": "gi"
+        },
+        {
+          "pattern": "amplitude\\.identify.*email",
+          "flags": "gi"
+        },
+        {
+          "pattern": "identify\\s*\\(\\s*\\{[^}]*(?:email|name|phone)[^}]*\\}",
+          "flags": "gi"
+        },
+        {
+          "pattern": "analytics\\.identify\\s*\\(\\s*\\w+\\s*,\\s*\\{[^}]*(?:email|name|phone)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "mp\\.people_set\\s*\\([^)]*(?:email|\\$email|name|phone)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "analytics\\.Enqueue\\s*\\(\\s*analytics\\.Identify\\s*\\{[^}]*(?:Email|Name|Phone)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "Amplitude\\.getInstance\\s*\\(\\s*\\)\\s*\\.setUserId\\s*\\([^)]*email",
+          "flags": "gi"
+        },
+        {
+          "pattern": "MixpanelAPI\\.\\w*identify\\s*\\([^)]*email",
+          "flags": "gi"
+        },
+        {
+          "pattern": "FirebaseAnalytics\\.setUserId\\s*\\([^)]*(?:email|name)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:setUserId|set_user_id)\\s*\\([^)]*(?:email|\\.name|phone)",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Hash user ID and omit email/name from analytics payload",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "go",
+        "java",
+        "kotlin"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "anonymize-analytics",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-edu-019",
+      "name": "Missing Teacher/School Verification",
+      "severity": "medium",
+      "confidence": "low",
+      "category": "education",
+      "description": "Teacher accounts using generic email (@gmail.com) bypass \"School Official\" consent exception",
+      "patterns": [
+        {
+          "pattern": "(?:teacher|educator)(?:Sign[Uu]p|[Rr]egist(?:er|ration))\\s*(?:\\(|=|:)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "createTeacherAccount|registerTeacher|teacherAuth",
+          "flags": "gi"
+        },
+        {
+          "pattern": "role\\s*(?:=|:)\\s*['\"]teacher['\"].*(?:@gmail|@yahoo|@hotmail)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "isTeacher\\s*&&\\s*!.*\\.edu",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Restrict teacher sign-ups to verified EDU domains or require manual approval",
+      "penalty": "Loss of School Official consent status",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "school-verify",
+      "guidance_url": null,
+      "compliance_determining": false,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "guidance"
+    },
+    {
+      "id": "coppa-default-020",
+      "name": "Default Public Profile Visibility",
+      "severity": "critical",
+      "confidence": "medium",
+      "category": "defaults",
+      "description": "Default profile visibility must be private. COPPA 2.0 requires privacy by design.",
+      "patterns": [
+        {
+          "pattern": "(?<!(?:mock|Mock|fake|stub|fixture|seed|example|test|Test|expect|assert|//|\\*)\\s{0,20})isProfileVisible:\\s*true",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?<!(?:mock|Mock|fake|stub|fixture|seed|example|test|Test|expect|assert|//|\\*)\\s{0,20})(?:profile|user|account|member)[^\\n]{0,30}visibility:\\s*['\"]public['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?<!(?:mock|Mock|fake|stub|fixture|seed|example|test|Test|expect|assert|//|\\*)\\s{0,20})defaultPrivacy:\\s*['\"]public['\"]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?<!(?:mock|Mock|fake|stub|fixture|seed|example|test|Test|expect|assert|//|\\*)\\s{0,20})isPublic:\\s*true[^}]*(profile|User)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?<!(?:mock|Mock|fake|stub|fixture|seed|example|test|Test|expect|assert|//|\\*)\\s{0,20})profileVisibility\\s*=\\s*['\"]?(?:public|Public)['\"]?",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Change default visibility to \"private\" or false",
+      "penalty": "$53,088 per violation",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "swift"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "auto",
+      "transform_type": "set-default",
+      "scaffold_id": null,
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "design",
+      "visualVerification": true,
+      "authority_tier": "guidance"
+    },
+    {
+      "id": "coppa-ads-021",
+      "name": "Targeted Advertising Without Separate Consent",
+      "severity": "critical",
+      "confidence": "medium",
+      "category": "advertising",
+      "description": "COPPA 2025 requires separate, specific opt-in consent before collecting children's PI for targeted advertising. Marketing consent cannot be bundled with general terms acceptance. Ad SDK initialization without a distinct consent flow is a violation.",
+      "patterns": [
+        {
+          "pattern": "(?:import|require).*(?:google-mobile-ads|@react-native-firebase\\/admob|react-native-admob)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:GADMobileAds|GADRequest|GADBannerView|GADInterstitial)\\.\\w+",
+          "flags": "gi"
+        },
+        {
+          "pattern": "MobileAds\\.initialize|AdRequest\\.Builder|AdView|InterstitialAd\\.load",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:FBAudienceNetwork|FBAdView|FBInterstitialAd|FBNativeAd)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:import|require).*(?:react-native-fbads|@react-native-community\\/fbads)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "UnityAds\\.(?:initialize|show|load)|import\\s+UnityAds",
+          "flags": "gi"
+        },
+        {
+          "pattern": "IronSource\\.(?:init|showRewardedVideo|loadInterstitial)|import\\s+IronSource",
+          "flags": "gi"
+        },
+        {
+          "pattern": "AppLovin\\.(?:initialize|showAd)|import.*AppLovinSDK",
+          "flags": "gi"
+        },
+        {
+          "pattern": "Chartboost\\.(?:start|showInterstitial|cacheInterstitial)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "AdColony\\.(?:configure|requestInterstitial)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "Vungle\\.(?:init|playAd|loadAd)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "mopub\\.(?:loadBanner|loadInterstitial)|MoPubInterstitial",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Implement a separate, specific opt-in consent flow for advertising before initializing ad SDKs. Marketing consent must NOT be bundled with general terms acceptance. Use age-gated ad experiences or contextual-only advertising for children under 13.",
+      "penalty": "$53,088 per violation (COPPA 2025 separate advertising consent requirement)",
+      "languages": [
+        "typescript",
+        "javascript",
+        "swift",
+        "kotlin",
+        "java",
+        "python"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": "consent-ads",
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-2-021",
+      "name": "Biometric Identifier Collection Without VPC",
+      "severity": "critical",
+      "confidence": "medium",
+      "category": "bio",
+      "description": "COPPA 2.0 expands 'personal information' to include biometric identifiers: fingerprints, voiceprints, facial geometry, gait patterns. Collection requires Verifiable Parental Consent (VPC) before any data capture.",
+      "patterns": [
+        {
+          "pattern": "(?:fingerprint|faceprint|voiceprint|gaitAnalysis|gait_analysis)\\s*[:=]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:biometric|Biometric)(?:Data|Info|Template|Hash|Feature|Scan)\\s*[:=]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:faceGeometry|face_geometry|facialGeometry|facial_geometry)\\s*[:=]",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:ARFaceAnchor|ARFaceGeometry)\\.(?:geometry|blendShapes)",
+          "flags": "g"
+        },
+        {
+          "pattern": "(?:SpeakerRecognition|VoiceEnrollment|VoiceVerification)\\s*\\(",
+          "flags": "g"
+        },
+        {
+          "pattern": "(?:palmPrint|palm_print|irisPattern|iris_pattern|retinaScan|retina_scan)\\s*[:=]",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Obtain Verifiable Parental Consent (VPC) before collecting any biometric identifiers. Under COPPA 2.0, biometric data is 'personal information' requiring the highest consent standard. Keep biometric processing local-only where possible.",
+      "penalty": "$53,088 per violation (FTC Final Rule effective April 22, 2026)",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "go",
+        "java",
+        "kotlin",
+        "swift"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": null,
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "requiresUserInput": true,
+      "userInputTier": 3,
+      "questionTemplate": {
+        "trigger": "biometric_api_detected",
+        "questions": [
+          {
+            "id": "q1",
+            "text": "We detected biometric API usage ({pattern}) in {filePath}. Is this used for biometric authentication (fingerprint login, face unlock)?",
+            "type": "yes_no",
+            "verdictMap": {
+              "yes": {
+                "verdict": "confirmed",
+                "confidence": 0.95,
+                "reason": "Developer confirmed biometric data collection for authentication \u2014 requires VPC under COPPA 2.0"
+              },
+              "no": {
+                "verdict": "needs_followup",
+                "nextQuestion": "q2"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain about biometric API usage. Recommend checking with engineering team."
+              }
+            }
+          },
+          {
+            "id": "q2",
+            "text": "Is the biometric data processed locally on the device, or transmitted to a server?",
+            "type": "choice",
+            "options": [
+              "Processed locally only",
+              "Transmitted to server",
+              "I'm not sure"
+            ],
+            "verdictMap": {
+              "Processed locally only": {
+                "verdict": "dismissed",
+                "confidence": 0.85,
+                "reason": "Biometric data processed locally \u2014 no collection under COPPA"
+              },
+              "Transmitted to server": {
+                "verdict": "needs_followup",
+                "nextQuestion": "q3"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain about biometric data handling. Recommend checking with engineering team and re-running scan."
+              }
+            }
+          },
+          {
+            "id": "q3",
+            "text": "Does your app obtain verifiable parental consent before collecting biometric data from children?",
+            "type": "yes_no",
+            "verdictMap": {
+              "yes": {
+                "verdict": "dismissed",
+                "confidence": 0.9,
+                "reason": "VPC obtained before biometric collection \u2014 compliant"
+              },
+              "no": {
+                "verdict": "confirmed",
+                "confidence": 0.95,
+                "reason": "Biometric data collected without VPC \u2014 COPPA 2.0 violation"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain about VPC status. Recommend legal review."
+              }
+            }
+          }
+        ]
+      },
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-2-022",
+      "name": "Push Notification Token Without Parental Opt-In",
+      "severity": "high",
+      "confidence": "medium",
+      "category": "notif",
+      "description": "COPPA 2.0 classifies device push notification tokens as 'online contact information'. Subscribing a child's device to push notifications requires prior parental consent and an opt-out mechanism.",
+      "patterns": [
+        {
+          "pattern": "(?:messaging|Messaging)\\.(?:getToken|requestPermission|subscribeToTopic)\\s*\\(",
+          "flags": "g"
+        },
+        {
+          "pattern": "(?:registerForRemoteNotifications|requestAuthorization)\\s*\\(\\s*\\[?\\s*\\.(?:alert|badge|sound)",
+          "flags": "g"
+        },
+        {
+          "pattern": "(?:PushNotificationIOS|PushNotification)\\.(?:requestPermissions|configure)\\s*\\(",
+          "flags": "g"
+        },
+        {
+          "pattern": "(?:expo-notifications|@notifee|react-native-push-notification).*(?:requestPermissions|getToken)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:saveDeviceToken|storeDeviceToken|registerDeviceToken|savePushToken|storePushToken)\\s*\\(",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Gate push notification token registration behind a parental consent check. Under COPPA 2.0, push tokens are 'online contact information' \u2014 parents must explicitly opt in, and you must provide an opt-out mechanism accessible from a parental dashboard.",
+      "penalty": "$53,088 per violation (FTC Final Rule effective April 22, 2026)",
+      "languages": [
+        "typescript",
+        "javascript",
+        "swift",
+        "kotlin",
+        "java"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": null,
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "deprecated",
+      "is_active": false
+    },
+    {
+      "id": "coppa-2-023",
+      "name": "Ed-Tech Data Use Beyond Educational Purpose",
+      "severity": "high",
+      "confidence": "low",
+      "category": "edu",
+      "description": "COPPA 2.0 restricts ed-tech providers operating under the 'school official' exception: student data may only be used for the educational purpose authorized by the school. No advertising, profiling, or secondary data use.",
+      "patterns": [
+        {
+          "pattern": "(?:student|Student)(?:Data|Profile|Record|Info).*(?:marketing|advertising|adTargeting|ad_targeting|profiling|analytics\\.identify|recommend)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:classroomData|classroom_data|schoolData|school_data).*(?:thirdParty|third_party|partner|advertis|market)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:edtech|EdTech|LMS|lms).*(?:analytics\\.track|mixpanel|amplitude|segment\\.identify)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:shareStudentData|share_student_data|exportStudentRecords|export_student_records)\\s*\\(",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Ensure ed-tech data collected under the 'school official' exception is used exclusively for the authorized educational purpose. Remove any analytics, advertising, or profiling code paths that touch student data. COPPA 2.0 makes this an explicit prohibition.",
+      "penalty": "$53,088 per violation (FTC Final Rule effective April 22, 2026)",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "go",
+        "java",
+        "kotlin"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": null,
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "requiresUserInput": true,
+      "userInputTier": 3,
+      "questionTemplate": {
+        "trigger": "edtech_data_analytics_detected",
+        "questions": [
+          {
+            "id": "q1",
+            "text": "We detected student data flowing to analytics ({pattern}) in {filePath}. Does your school agreement limit data use to educational purposes only?",
+            "type": "yes_no",
+            "verdictMap": {
+              "yes": {
+                "verdict": "needs_followup",
+                "nextQuestion": "q2"
+              },
+              "no": {
+                "verdict": "confirmed",
+                "confidence": 0.95,
+                "reason": "No school agreement limiting data use \u2014 student data may be used beyond educational purpose"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain about school agreement terms. Recommend legal review of data use agreements."
+              }
+            }
+          },
+          {
+            "id": "q2",
+            "text": "Is this analytics data used for advertising, profiling, or any purpose beyond the educational service?",
+            "type": "yes_no",
+            "verdictMap": {
+              "yes": {
+                "verdict": "confirmed",
+                "confidence": 0.95,
+                "reason": "Student data used beyond educational purpose \u2014 violates COPPA 2.0 school official exception"
+              },
+              "no": {
+                "verdict": "dismissed",
+                "confidence": 0.85,
+                "reason": "Analytics limited to educational purpose \u2014 within school official exception"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain about data use purpose. Recommend data flow documentation review."
+              }
+            }
+          }
+        ]
+      },
+      "authority_tier": "guidance"
+    },
+    {
+      "id": "coppa-2-024",
+      "name": "Data Retention Beyond Reasonable Necessity",
+      "severity": "medium",
+      "confidence": "low",
+      "category": "retention",
+      "description": "COPPA 2.0 strengthens data retention requirements: operators must delete children's personal information when it is no longer reasonably necessary for the purpose for which it was collected. Indefinite retention or missing deletion mechanisms violate this requirement.",
+      "patterns": [
+        {
+          "pattern": "(?:retentionPolicy|retention_policy|dataRetention|data_retention)\\s*[:=]\\s*(?:'forever'|\"forever\"|'indefinite'|\"indefinite\"|'none'|\"none\"|null|undefined|-1|0)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:deleteAfterDays|delete_after_days|ttlDays|ttl_days|expiresIn|expires_in)\\s*[:=]\\s*(?:null|undefined|0|-1|false)",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:neverDelete|never_delete|keepForever|keep_forever|permanentStorage|permanent_storage)\\s*[:=]\\s*true",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:childData|child_data|minorData|minor_data|studentData|student_data).*(?:archive|Archive|longTermStorage|long_term_storage)",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Implement automatic data deletion policies for children's personal information. Set reasonable TTLs based on the purpose of collection. Add a scheduled deletion job that purges expired child data. COPPA 2.0 requires deletion when data is no longer reasonably necessary.",
+      "penalty": "$53,088 per violation (FTC Final Rule effective April 22, 2026)",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "go",
+        "java",
+        "kotlin"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": null,
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "code",
+      "visualVerification": false,
+      "authority_tier": "statutory"
+    },
+    {
+      "id": "coppa-2-025",
+      "name": "Consent Mechanism Not Meeting VPC Standard",
+      "severity": "high",
+      "confidence": "low",
+      "category": "consent",
+      "description": "COPPA 2.0 requires Verifiable Parental Consent (VPC) via methods that provide a greater level of assurance: signed consent forms, credit card transactions, video calls, government ID, or knowledge-based authentication. Simple email-based consent ('email plus') is only valid for internal use.",
+      "patterns": [
+        {
+          "pattern": "(?:parentConsent|parent_consent|parentalConsent|parental_consent)\\s*[:=]\\s*(?:true|1|'yes'|\"yes\")",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:consentMethod|consent_method|verificationMethod|verification_method)\\s*[:=]\\s*(?:'email'|\"email\"|'checkbox'|\"checkbox\"|'click'|\"click\")",
+          "flags": "gi"
+        },
+        {
+          "pattern": "(?:parentEmail|parent_email).*(?:sendVerification|send_verification|sendConsent|send_consent)\\s*\\(",
+          "flags": "gi"
+        },
+        {
+          "pattern": "<input[^>]*type=['\"]checkbox['\"][^>]*(?:consent|agree|parent)",
+          "flags": "gi"
+        }
+      ],
+      "fix_suggestion": "Upgrade consent mechanism to meet COPPA 2.0 VPC standards. For external data sharing, use credit card verification, video calls, government ID, or knowledge-based authentication. Simple checkboxes and email confirmations do not meet the VPC standard for external use of children's data.",
+      "penalty": "$53,088 per violation (FTC Final Rule effective April 22, 2026)",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "go",
+        "java",
+        "kotlin",
+        "swift"
+      ],
+      "packs": [
+        "coppa"
+      ],
+      "fixability": "guided",
+      "transform_type": null,
+      "scaffold_id": null,
+      "guidance_url": null,
+      "compliance_determining": true,
+      "knowledge": {},
+      "detectionModality": "behavior",
+      "visualVerification": true,
+      "status": "draft",
+      "requiresUserInput": true,
+      "userInputTier": 3,
+      "questionTemplate": {
+        "trigger": "consent_mechanism_detected",
+        "questions": [
+          {
+            "id": "q1",
+            "text": "We detected a parental consent mechanism in {filePath}. Which verification method does it use?",
+            "type": "choice",
+            "options": [
+              "Email confirmation",
+              "Credit card charge",
+              "Government ID verification",
+              "Video call",
+              "Knowledge-based challenge",
+              "None of these",
+              "I'm not sure"
+            ],
+            "verdictMap": {
+              "Email confirmation": {
+                "verdict": "needs_followup",
+                "nextQuestion": "q2"
+              },
+              "Credit card charge": {
+                "verdict": "dismissed",
+                "confidence": 0.9,
+                "reason": "Credit card verification meets VPC standard"
+              },
+              "Government ID verification": {
+                "verdict": "dismissed",
+                "confidence": 0.9,
+                "reason": "Government ID meets VPC standard"
+              },
+              "Video call": {
+                "verdict": "dismissed",
+                "confidence": 0.9,
+                "reason": "Video call verification meets VPC standard"
+              },
+              "Knowledge-based challenge": {
+                "verdict": "dismissed",
+                "confidence": 0.85,
+                "reason": "Knowledge-based challenge may meet VPC standard \u2014 verify with legal"
+              },
+              "None of these": {
+                "verdict": "needs_followup",
+                "nextQuestion": "q2"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain about consent verification method. Recommend legal review."
+              }
+            }
+          },
+          {
+            "id": "q2",
+            "text": "Does the consent flow require a parent to take an action that a child cannot easily replicate?",
+            "type": "yes_no",
+            "verdictMap": {
+              "yes": {
+                "verdict": "dismissed",
+                "confidence": 0.85,
+                "reason": "Consent requires parent-specific action \u2014 meets VPC intent"
+              },
+              "no": {
+                "verdict": "confirmed",
+                "confidence": 0.9,
+                "reason": "Consent flow does not require parent-specific action \u2014 child could bypass"
+              },
+              "I'm not sure": {
+                "verdict": "needs_review",
+                "confidence": 0.5,
+                "reason": "Developer uncertain. Recommend testing consent flow with child-age user."
+              }
+            }
+          }
+        ]
+      },
+      "architectureDependent": true,
+      "authority_tier": "statutory"
+    }
+  ]
+}

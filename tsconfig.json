@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022"],
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./packages",
+    "composite": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@runhalo/engine": ["./packages/engine/src"],
+      "@runhalo/cli": ["./packages/cli/src"],
+      "@runhalo/mcp": ["./packages/mcp/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "**/dist"]
+}
