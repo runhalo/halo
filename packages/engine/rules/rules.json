@@ -81,6 +81,22 @@
         {
           "pattern": "LoginManager\\.getInstance\\s*\\(\\s*\\)\\s*\\.logIn",
           "flags": "gi"
+        },
+        {
+          "pattern": "ASAuthorizationAppleIDProvider",
+          "flags": "g"
+        },
+        {
+          "pattern": "SignInWithAppleButton",
+          "flags": "g"
+        },
+        {
+          "pattern": "ASAuthorizationController\\s*\\(",
+          "flags": "g"
+        },
+        {
+          "pattern": "appleIDCredential\\.\\w+",
+          "flags": "g"
         }
       ],
       "fix_suggestion": "Wrap the auth call in a conditional check for user.age >= 13 or use signInWithParentEmail() for children",
