@@ -1455,10 +1455,10 @@
     {
       "id": "coppa-2-022",
       "name": "Push Notification Token Without Parental Opt-In",
-      "severity": "high",
+      "severity": "info",
       "confidence": "medium",
       "category": "notif",
-      "description": "COPPA 2.0 classifies device push notification tokens as 'online contact information'. Subscribing a child's device to push notifications requires prior parental consent and an opt-out mechanism.",
+      "description": "[DEPRECATED] This rule is inactive. The FTC 2025 final rule did not adopt the provision classifying push notification tokens as online contact information. Any manipulative-notification concerns are covered separately by coppa-notif-013 (voluntary best practice).",
       "patterns": [
         {
           "pattern": "(?:messaging|Messaging)\\.(?:getToken|requestPermission|subscribeToTopic)\\s*\\(",
@@ -1481,8 +1481,8 @@
           "flags": "gi"
         }
       ],
-      "fix_suggestion": "Gate push notification token registration behind a parental consent check. Under COPPA 2.0, push tokens are 'online contact information' \u2014 parents must explicitly opt in, and you must provide an opt-out mechanism accessible from a parental dashboard.",
-      "penalty": "$53,088 per violation (FTC Final Rule effective April 22, 2026)",
+      "fix_suggestion": "[DEPRECATED] No action required. This rule has been deactivated because the FTC 2025 final rule did not adopt the underlying provision. See coppa-notif-013 for manipulative-notification best-practice guidance.",
+      "penalty": "Deprecated rule \u2014 no penalty applies. FTC did not adopt this provision.",
       "languages": [
         "typescript",
         "javascript",
