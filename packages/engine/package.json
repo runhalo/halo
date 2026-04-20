@@ -1,6 +1,6 @@
 {
   "name": "@runhalo/engine",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Halo scanning engine -- COPPA compliance detection for children's app codebases.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
