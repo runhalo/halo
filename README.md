@@ -210,6 +210,12 @@ npm run build
 npm test
 ```
 
+`npm install` points your clone's git hooks at `.githooks` (via `core.hooksPath`),
+which installs a fail-closed pre-push check that the rule set is the COPPA-only
+pack. To enable it without a full install, run `git config core.hooksPath .githooks`.
+You can run the same check anytime with `npm run check:rules`. The check also runs
+in CI on every push and pull request.
+
 ## "Scanned with Halo" Badge
 
 ```markdown

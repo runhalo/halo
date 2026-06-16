@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#
+# Versioned pre-push hook: enforces the COPPA-only rule set before any push,
+# so every clone is fail-closed (not just whoever installed a local hook).
+#
+# Enable it once per clone with:
+#   git config core.hooksPath .githooks
+#
+# Running "npm install" in this repo configures core.hooksPath automatically
+# (see the "prepare" script in package.json).
+
+set -euo pipefail
+
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${HOOK_DIR}/.." && pwd)"
+
+# Shared, versioned guard (fail-closed for every clone).
+"${REPO_ROOT}/scripts/check-coppa-rules.sh"
+
+# Setting core.hooksPath overrides .git/hooks entirely. Chain to a local,
+# unversioned pre-push hook if one exists so personal hooks keep running.
+GIT_COMMON_DIR="$(git rev-parse --git-common-dir 2>/dev/null || echo .git)"
+case "$GIT_COMMON_DIR" in
+  /*) ;;
+  *) GIT_COMMON_DIR="${REPO_ROOT}/${GIT_COMMON_DIR}" ;;
+esac
+LOCAL_HOOK="${GIT_COMMON_DIR}/hooks/pre-push"
+if [ -x "$LOCAL_HOOK" ]; then
+  exec "$LOCAL_HOOK" "$@"
+fi
