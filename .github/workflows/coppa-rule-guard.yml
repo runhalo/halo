@@ -1,0 +1,26 @@
+# COPPA Rule Guard
+#
+# The open-source scanner ships the COPPA rule pack only. This workflow is
+# fail-closed: it blocks any push or pull request whose rule set is not exactly
+# the expected COPPA-only set (count and id prefix). It shares the same check
+# used by the local pre-push hook (.githooks/pre-push).
+
+name: COPPA Rule Guard
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  coppa-rule-guard:
+    runs-on: ubuntu-latest
+    name: COPPA-only rule set
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Verify COPPA-only rule set
+        run: ./scripts/check-coppa-rules.sh
