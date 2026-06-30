@@ -9,8 +9,7 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "check:rules": "./scripts/check-coppa-rules.sh",
-    "sync-rules": "node -e \"JSON.parse(require('fs').readFileSync('packages/engine/rules/rules.json','utf8'))\" && cp packages/engine/rules/rules.json supabase/functions/scan-repo/rules.json && cp packages/engine/rules/rules.json supabase/functions/compute-compliance-score/rules.json && echo '✓ rules.json synced to both edge functions'",
-    "build": "npm run sync-rules && cd packages/engine && npm run build && cd ../cli && npm run build && cd ../mcp && npm run build",
+    "build": "npm run check:rules && cd packages/engine && npm run build && cd ../cli && npm run build && cd ../mcp && npm run build",
     "build:all": "npm run build",
     "test": "npm run test:engine && npm run test:cli && npm run test:mcp && npm run test:vscode",
     "test:engine": "cd packages/engine && npm test",
