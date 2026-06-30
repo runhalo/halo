@@ -485,7 +485,7 @@ describe('Halo CLI', () => {
       expect(typeof init).toBe('function');
     });
 
-    it('should include all 20 COPPA rules in IDE content', () => {
+    it('should include COPPA rules in IDE content', () => {
       // The rules content generator is embedded in the CLI
       // Verify by checking the generated file content pattern
       const { init } = require('../index');
