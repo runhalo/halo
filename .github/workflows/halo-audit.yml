@@ -66,8 +66,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install Halo
-        run: npm install -g @runhalo/cli@latest
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build local Halo CLI
+        run: npm run build
 
       # --- Primary scan: JSON output for PR comment ---
       - name: Run Halo scan
@@ -86,7 +89,7 @@ jobs:
           echo "Review board: ${{ github.event.inputs.review-board || 'false' }}"
           echo "::endgroup::"
 
-          npx runhalo scan . \
+          node packages/cli/dist/index.js scan . \
             --pack $PACK \
             --format json \
             --output halo-results.json \
@@ -116,7 +119,7 @@ jobs:
       - name: Generate SARIF
         run: |
           PACK="${{ github.event.inputs.pack || 'coppa ethical ai-audit' }}"
-          npx runhalo scan . \
+          node packages/cli/dist/index.js scan . \
             --pack $PACK \
             --format sarif \
             --output halo-results.sarif \
