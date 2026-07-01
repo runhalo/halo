@@ -1575,6 +1575,11 @@ export class HaloEngine {
    * Scan using tree-sitter AST analysis (advanced mode)
    */
   scanFileWithAST(filePath: string, content: string, language: 'typescript' | 'javascript' = 'typescript'): Violation[] {
+    const ignoreConfig = this.config.ignoreConfig;
+    if (ignoreConfig && shouldIgnoreFile(filePath, ignoreConfig)) {
+      return [];
+    }
+
     // First get regex-based violations
     let violations = this.scanFile(filePath, content);
 

@@ -11,7 +11,22 @@
 
 import * as vscode from 'vscode';
 
-const SUPABASE_URL = 'https://wrfwcmyxxbafcdvxlmug.supabase.co';
+// Public OSS builds must not embed Halo's private Supabase project URL.
+// Remote license validation is opt-in through a public API boundary.
+const HALO_API_BASE_URL = (process.env.HALO_API_BASE_URL || '').replace(/\/$/, '');
+const HALO_API_TOKEN = process.env.HALO_API_TOKEN || '';
+
+function getCloudUrl(pathname: string): string | null {
+  if (!HALO_API_BASE_URL) return null;
+  return `${HALO_API_BASE_URL}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
+}
+
+function getCloudHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (HALO_API_TOKEN) headers.Authorization = `Bearer ${HALO_API_TOKEN}`;
+  return headers;
+}
+
 const LICENSE_KEY = 'halo.licenseKey';
 const LICENSE_CACHE_KEY = 'halo.licenseCache';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -50,13 +65,16 @@ export async function getLicense(context: vscode.ExtensionContext): Promise<Lice
 
   // Validate remotely
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/validate-license`, {
+    const validateUrl = getCloudUrl('/validate-license');
+    if (!validateUrl) return cached || FREE_LICENSE;
+
+    const response = await fetch(validateUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getCloudHeaders(),
       body: JSON.stringify({ license_key: licenseKey }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
 
     const license: LicenseInfo = {
       valid: data.valid === true,
@@ -111,13 +129,19 @@ export async function activateLicense(context: vscode.ExtensionContext): Promise
 
   // Validate
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/validate-license`, {
+    const validateUrl = getCloudUrl('/validate-license');
+    if (!validateUrl) {
+      vscode.window.showErrorMessage('Halo: Remote license validation is unavailable in this public build. Set HALO_API_BASE_URL to enable it.');
+      return FREE_LICENSE;
+    }
+
+    const response = await fetch(validateUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getCloudHeaders(),
       body: JSON.stringify({ license_key: key }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
 
     if (!data.valid) {
       vscode.window.showErrorMessage(`Halo: Invalid license key. ${data.error || ''}`);

@@ -1,0 +1,24 @@
+# Halo self-audit ignores
+# This repo contains rule definitions, scanner fixtures, and intentionally unsafe demo code.
+# The GitHub compliance audit should validate product/example-consumer surfaces, not Halo's own pattern catalog.
+
+**/node_modules/**
+**/dist/**
+**/build/**
+**/coverage/**
+
+# Rule catalogs and scanner internals contain violation-pattern strings by design.
+**/packages/engine/src/index.ts
+**/packages/engine/rules/**
+**/packages/engine/src/sdk-intelligence.ts
+**/packages/engine/src/scaffolds/templates/**
+**/packages/engine/src/fix-generator.ts
+**/packages/cli/src/index.ts
+**/packages/mcp/src/index.ts
+
+# Intentionally unsafe fixtures/demo apps.
+**/docs/demo/**
+**/packages/**/__tests__/**
+**/packages/**/src/test/**
+**/packages/**/src/__tests__/**
+**/templates/**

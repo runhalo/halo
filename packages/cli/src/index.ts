@@ -2057,11 +2057,22 @@ const HALO_HISTORY_PATH = path.join(HALO_CONFIG_DIR, 'history.json');
 const MAX_HISTORY_ENTRIES = 100;
 const CLI_VERSION = '0.2.1';
 
-const SUPABASE_URL = 'https://wrfwcmyxxbafcdvxlmug.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZndjbXl4eGJhZmNkdnhsbXVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzNDc5MzIsImV4cCI6MjA4NzkyMzkzMn0.6Wj58QDuojPAY_ArVbZvjhcFVuX5VvzqjaEg0FkoYJI';
+// Public OSS builds must not embed Halo's private Supabase project URL or anon key.
+// Cloud-only features are opt-in and must be routed through a public API boundary.
+const HALO_API_BASE_URL = (process.env.HALO_API_BASE_URL || '').replace(/\/$/, '');
+const HALO_API_TOKEN = process.env.HALO_API_TOKEN || '';
 
-// Rules Engine API
-const RULES_API_BASE = `${SUPABASE_URL}/functions/v1`;
+function getCloudUrl(pathname: string): string | null {
+  if (!HALO_API_BASE_URL) return null;
+  return `${HALO_API_BASE_URL}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
+}
+
+function getCloudHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (HALO_API_TOKEN) headers.Authorization = `Bearer ${HALO_API_TOKEN}`;
+  return headers;
+}
+
 const RULES_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const RULES_CACHE_PATH = path.join(os.homedir(), '.halo', 'rules-cache.json');
 const RULES_FETCH_TIMEOUT_MS = 5000; // 5 second timeout
@@ -2074,12 +2085,16 @@ interface RulesCache {
 }
 
 /**
- * Fetch rules from the Supabase rules-fetch edge function.
+ * Fetch rules from the configured Halo API gateway.
  * Returns raw JSON rules (not compiled) or null on failure.
  */
 async function fetchRulesFromAPI(packs: string[], verbose: boolean): Promise<{ rules: JSONRule[]; etag: string | null } | null> {
   try {
-    const url = `${RULES_API_BASE}/rules-fetch?packs=${packs.join(',')}`;
+    const url = getCloudUrl(`/rules-fetch?packs=${packs.join(',')}`);
+    if (!url) {
+      if (verbose) console.error('📡 Rules API: disabled (set HALO_API_BASE_URL to enable cloud rules)');
+      return null;
+    }
     const cachedEtag = readRulesCache()?.etag;
 
     const headers: Record<string, string> = {};
@@ -2354,7 +2369,7 @@ async function sendWebhookNotifications(
       const timeout = setTimeout(() => controller.abort(), 5000);
       const res = await fetch(discord_webhook, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(discordPayload),
         signal: controller.signal,
       });
@@ -2402,7 +2417,7 @@ async function sendWebhookNotifications(
       const timeout = setTimeout(() => controller.abort(), 5000);
       const res = await fetch(slack_webhook, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(slackPayload),
         signal: controller.signal,
       });
@@ -2423,12 +2438,13 @@ async function sendWebhookNotifications(
 
 async function submitCliLead(email: string): Promise<void> {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/halo_leads`, {
+    const leadUrl = getCloudUrl('/leads');
+    if (!leadUrl) return;
+
+    const res = await fetch(leadUrl, {
       method: 'POST',
       headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
+        ...getCloudHeaders(),
         'Prefer': 'return=minimal',
       },
       body: JSON.stringify({
@@ -2452,7 +2468,7 @@ async function submitCliLead(email: string): Promise<void> {
 const FREE_SCAN_LIMIT = 5;
 
 /**
- * Validate a license key against Supabase validate-license edge function.
+ * Validate a license key against the configured Halo API gateway.
  * Returns license info or null on failure.
  */
 async function validateLicenseKey(licenseKey: string): Promise<{
@@ -2464,12 +2480,12 @@ async function validateLicenseKey(licenseKey: string): Promise<{
   error?: string;
 } | null> {
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/validate-license`, {
+    const validateUrl = getCloudUrl('/validate-license');
+    if (!validateUrl) return null;
+
+    const res = await fetch(validateUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
+      headers: getCloudHeaders(),
       body: JSON.stringify({ license_key: licenseKey }),
     });
     const data = await res.json() as any;
@@ -2487,7 +2503,7 @@ async function validateLicenseKey(licenseKey: string): Promise<{
 }
 
 /**
- * Activate a license key — validates via Supabase, stores in ~/.halo/config.json.
+ * Activate a license key — validates via the configured Halo API gateway, stores in ~/.halo/config.json.
  */
 async function activateLicense(licenseKey: string): Promise<number> {
   console.log(`\n  ${c(colors.dim, 'Validating license key...')}`);
@@ -2667,7 +2683,7 @@ async function firstRunPrompt(noPrompt: boolean): Promise<void> {
           promptedAt: new Date().toISOString(),
           consent: true,
         });
-        // Submit to Supabase (fire-and-forget)
+        // Submit to configured Halo API gateway (fire-and-forget)
         submitCliLead(email).catch(() => {});
         process.stderr.write(`  ${c('\x1b[32m', '✓')} Thanks! We'll keep you posted.\n\n`);
       } else {
@@ -3746,7 +3762,10 @@ program
             const allViolations = _lastScanData.results.flatMap(r => r.violations);
             if (allViolations.length > 0) {
               console.error('\n🤖 Running AI Review Board...');
-              const reviewUrl = 'https://wrfwcmyxxbafcdvxlmug.supabase.co/functions/v1/ai-review';
+              const reviewUrl = getCloudUrl('/ai-review');
+              if (!reviewUrl) {
+                console.error('⚠️  AI Review Board is unavailable in this public build. Set HALO_API_BASE_URL to a Halo API gateway to enable it.');
+              } else {
 
               // Chunk violations in batches of 50 (endpoint limit)
               const CHUNK_SIZE = 50;
@@ -3778,7 +3797,7 @@ program
 
                 const reviewRes = await fetch(reviewUrl, {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+                  headers: getCloudHeaders(),
                   body: JSON.stringify({
                     license_key: licenseKey,
                     violations: chunk,
@@ -3982,6 +4001,7 @@ program
               } else if (chunksFailed > 0) {
                 console.error(`⚠️  AI Review failed: all ${chunksFailed} batches failed`);
               }
+              }
             }
           } catch (reviewErr) {
             console.error(`⚠️  AI Review failed: ${reviewErr instanceof Error ? reviewErr.message : reviewErr}`);
@@ -4038,19 +4058,20 @@ program
             console.error('⚠️  No license key found. Run `halo activate <key>` first.');
           } else {
             console.error('☁️  Uploading scan results to Halo Dashboard...');
-            // Re-scan in JSON format to get structured data for upload
-            // Use the scan history to get the latest results
             const history = loadHistory();
             const lastEntry = history[history.length - 1];
-            if (lastEntry) {
+            const uploadUrl = getCloudUrl('/upload-scan');
+
+            if (!uploadUrl) {
+              console.error('⚠️  Dashboard upload is unavailable in this public build. Set HALO_API_BASE_URL to a Halo API gateway to enable it.');
+            } else if (lastEntry) {
               const projectPath = path.resolve(paths[0] || '.');
-              // Build minimal scan_json from last scan entry
               const scanJsonForUpload = {
                 repo: projectPath,
                 scannedAt: lastEntry.scannedAt,
                 filesScanned: lastEntry.filesScanned,
                 totalFiles: lastEntry.filesScanned,
-                violations: (globalThis as any).__haloViolationsForUpload || [], // Full violations for dashboard rendering
+                violations: (globalThis as any).__haloViolationsForUpload || [],
                 score: lastEntry.score,
                 grade: lastEntry.grade,
                 bySeverity: lastEntry.bySeverity,
@@ -4058,10 +4079,9 @@ program
                 suppressedCount: lastEntry.suppressedCount || 0,
               };
 
-              const uploadUrl = 'https://wrfwcmyxxbafcdvxlmug.supabase.co/functions/v1/upload-scan';
               const res = await fetch(uploadUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+                headers: getCloudHeaders(),
                 body: JSON.stringify({
                   license_key: config.license_key,
                   scan_json: scanJsonForUpload,
@@ -4453,7 +4473,9 @@ program
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), RULES_FETCH_TIMEOUT_MS);
-        const res = await fetch(`${RULES_API_BASE}/rules-catalog`, { signal: controller.signal });
+        const catalogUrl = getCloudUrl('/rules-catalog');
+        if (!catalogUrl) throw new Error('Rules catalog unavailable in this public build. Set HALO_API_BASE_URL to enable cloud catalog access.');
+        const res = await fetch(catalogUrl, { signal: controller.signal });
         clearTimeout(timeout);
 
         if (res.ok) {
@@ -4541,9 +4563,11 @@ program
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), RULES_FETCH_TIMEOUT_MS);
-      const res = await fetch(`${RULES_API_BASE}/report-fp`, {
+      const reportUrl = getCloudUrl('/report-fp');
+      if (!reportUrl) throw new Error('False-positive reporting unavailable in this public build. Set HALO_API_BASE_URL to enable cloud reporting.');
+      const res = await fetch(reportUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: getCloudHeaders(),
         body: JSON.stringify(body),
         signal: controller.signal,
       });
