@@ -269,11 +269,12 @@ export class ScopeAnalyzer {
    */
   private isAstPrimarilyTypes(tree: Parser.Tree): boolean {
     const root = tree.rootNode;
+    if (!root) return false;
+
     let totalStatements = 0;
     let typeStatements = 0;
 
-    for (let i = 0; i < root.childCount; i++) {
-      const child = root.child(i);
+    for (const child of this.getNodeChildren(root)) {
       if (!child) continue;
 
       const type = child.type;
@@ -357,17 +358,18 @@ export class ScopeAnalyzer {
    * target row. This gives us a starting point for ancestor walking.
    */
   private findDeepestNodeAtLine(
-    node: Parser.SyntaxNode,
+    node: Parser.SyntaxNode | null | undefined,
     targetRow: number,
   ): Parser.SyntaxNode | null {
+    if (!node) return null;
+
     // If this node doesn't span the target row, skip it
     if (node.startPosition.row > targetRow || node.endPosition.row < targetRow) {
       return null;
     }
 
     // Try to find a more specific child
-    for (let i = 0; i < node.childCount; i++) {
-      const child = node.child(i);
+    for (const child of this.getNodeChildren(node)) {
       if (!child) continue;
       const deeper = this.findDeepestNodeAtLine(child, targetRow);
       if (deeper) {
@@ -377,6 +379,21 @@ export class ScopeAnalyzer {
 
     // No child matched — this node is the deepest
     return node;
+  }
+
+  private getNodeChildren(node: Parser.SyntaxNode): Parser.SyntaxNode[] {
+    const children = (node as any).children;
+    if (Array.isArray(children)) {
+      return children as Parser.SyntaxNode[];
+    }
+
+    const count = (node as any).childCount ?? 0;
+    const result: Parser.SyntaxNode[] = [];
+    for (let i = 0; i < count; i++) {
+      const child = node.child(i);
+      if (child) result.push(child);
+    }
+    return result;
   }
 }
 

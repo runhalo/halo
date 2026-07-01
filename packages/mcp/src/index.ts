@@ -2,7 +2,7 @@
  * Halo MCP Server
  * Model Context Protocol server for IDE integration
  *
- * Updated with all 20 COPPA rules, enhanced explain_rule,
+ * Updated with public COPPA rules, enhanced explain_rule,
  * suppression system support, and full tool definitions per spec
  */
 

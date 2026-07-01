@@ -17,12 +17,26 @@ import Parser from 'tree-sitter';
 /**
  * Recursively walk every node in a subtree, calling `visitor` on each one.
  */
+function getNodeChildren(node: Parser.SyntaxNode): Parser.SyntaxNode[] {
+  const children = (node as any).children;
+  if (Array.isArray(children)) {
+    return children as Parser.SyntaxNode[];
+  }
+
+  const count = (node as any).childCount ?? 0;
+  const result: Parser.SyntaxNode[] = [];
+  for (let i = 0; i < count; i++) {
+    const child = node.child(i);
+    if (child) result.push(child);
+  }
+  return result;
+}
+
 function walk(node: Parser.SyntaxNode | null | undefined, visitor: (n: Parser.SyntaxNode) => void): void {
   if (!node || typeof node.type !== 'string') return;
   visitor(node);
-  const count = node.childCount || 0;
-  for (let i = 0; i < count; i++) {
-    walk(node.child(i), visitor);
+  for (const child of getNodeChildren(node)) {
+    walk(child, visitor);
   }
 }
 

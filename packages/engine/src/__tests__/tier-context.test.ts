@@ -111,10 +111,10 @@ describe('TierContext', () => {
       expect(ctx.limits.rulesAvailable).toBe(25);
     });
 
-    it('pro/business/enterprise have 26 rules', () => {
-      expect(createTierContext('pro').limits.rulesAvailable).toBe(26);
-      expect(createTierContext('business').limits.rulesAvailable).toBe(26);
-      expect(createTierContext('enterprise').limits.rulesAvailable).toBe(26);
+    it('pro/business/enterprise have all paid rule-pack capacity', () => {
+      expect(createTierContext('pro').limits.rulesAvailable).toBe(160);
+      expect(createTierContext('business').limits.rulesAvailable).toBe(160);
+      expect(createTierContext('enterprise').limits.rulesAvailable).toBe(160);
     });
   });
 
