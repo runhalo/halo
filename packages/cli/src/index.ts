@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as readline from 'readline';
-import { HaloEngine, Violation, ScanResult, EngineConfig, parseHaloignore, IgnoreConfig, shouldIgnoreFile, FixEngine, REMEDIATION_MAP, ComplianceScoreEngine, loadRulesFromJSON, loadRulesFromJSONByPack, compileRawRules, JSONRule, detectSDKsFromPackageJson, generateSDKContext, getCoppaCountdown, formatCoppaCountdownCLI, formatCoppaCountdownPDF, getUpgradeCTA, createTierContext, buildImportGraph, summarizeImportGraph, formatImportGraphForReview, formatRegulatoryCountdownCLI, formatDollarExposure } from '@runhalo/engine';
+import { HaloEngine, Violation, ScanResult, EngineConfig, parseHaloignore, IgnoreConfig, shouldIgnoreFile, FixEngine, REMEDIATION_MAP, ComplianceScoreEngine, loadRulesFromJSON, loadRulesFromJSONByPack, compileRawRules, JSONRule, detectSDKsFromPackageJson, generateSDKContext, getCoppaCountdown, formatCoppaCountdownCLI, formatCoppaCountdownPDF, getUpgradeCTA, createTierContext, buildImportGraph, summarizeImportGraph, formatImportGraphForReview, formatRegulatoryCountdownCLI, formatDollarExposure, isAstAvailable, getAstFailureMessage, resetAstAvailability } from '@runhalo/engine';
 import PDFDocument from 'pdfkit';
 
 // Output formats
@@ -166,7 +166,24 @@ function formatSARIF(results: ScanResult[], rules: any[]): string {
           }))
         }
       },
-      results: results.flatMap(result => 
+      // Codex R1 P2 finding: CI consumers of SARIF need to know when
+      // the run was AST-degraded. Per SARIF 2.1.0 §3.20.6,
+      // `invocations[].executionSuccessful = false` is the canonical
+      // way to mark a tool run that completed with degraded
+      // capability; we attach a toolExecutionNotification with the
+      // failure cause so reviewers can see WHY without parsing logs.
+      invocations: [{
+        executionSuccessful: isAstAvailable(),
+        ...(isAstAvailable() ? {} : {
+          toolExecutionNotifications: [{
+            level: 'warning',
+            message: {
+              text: `AST verification unavailable; results are regex-only. Cause: ${getAstFailureMessage() || 'unknown'}`,
+            },
+          }],
+        }),
+      }],
+      results: results.flatMap(result =>
         result.violations.map(v => ({
           ruleId: v.ruleId,
           level: v.severity === 'critical' || v.severity === 'high' ? 'error' : 'warning',
@@ -209,6 +226,15 @@ function formatJSON(results: ScanResult[], scoreResult?: any): string {
       bySeverity: scoreResult.bySeverity,
       rulesTriggered: scoreResult.rulesTriggered,
     };
+  }
+  // Codex R1 P2 finding: structured outputs need an explicit
+  // degraded-mode signal so CI integrations can distinguish a healthy
+  // scan from a regex-only fallback. Top-level field; absent in
+  // earlier CLI versions, so consumers should treat absence as
+  // "unknown, assume available."
+  output.astAvailable = isAstAvailable();
+  if (!output.astAvailable) {
+    output.astFailureMessage = getAstFailureMessage();
   }
   return JSON.stringify(output, null, 2);
 }
@@ -2705,6 +2731,15 @@ async function firstRunPrompt(noPrompt: boolean): Promise<void> {
  * Main scan function
  */
 async function scan(paths: string[], options: CLIOptions): Promise<number> {
+  // Codex R1 P2 finding: the engine's AST availability flag is
+  // process-global. `runhalo watch` runs scan() in a loop in the
+  // same process, so without a per-scan reset a transient AST
+  // failure on one cycle would falsely flag every later cycle as
+  // degraded. Reset at the top so each invocation is judged on its
+  // own evidence — if AST is genuinely broken (Node 24 ABI), the
+  // first parse() will re-flip the flag immediately.
+  resetAstAvailability();
+
   // Validate paths exist
   const scanRoot = paths[0] || '.';
   if (!fs.existsSync(scanRoot)) {
@@ -3042,6 +3077,34 @@ async function scan(paths: string[], options: CLIOptions): Promise<number> {
     rulesTriggered: scoreResult.rulesTriggered,
   });
 
+  // Up-front degraded-mode banner. If AST verification became
+  // unavailable during the scan (typically a tree-sitter native
+  // binding ABI mismatch on the host Node version), the engine
+  // silently downgraded every violation to regex-only mode. Without
+  // a clear up-front signal the user sees the full, un-AST-filtered
+  // firehose framed as "Critical / F" and reasonably loses trust
+  // in the tool. Print one concise banner stating the mode + how
+  // to resolve locally + where the canonical analysis lives.
+  // Text-format only (JSON/SARIF consumers parse the structured
+  // data and don't need the prose).
+  const astAvailable = isAstAvailable();
+  if (!astAvailable && options.format === 'text') {
+    const failureMsg = getAstFailureMessage() || 'unknown error';
+    console.error('');
+    console.error(c(colors.yellow + colors.bold, '⚠  Halo CLI is running in REGEX-ONLY mode'));
+    console.error(c(colors.dim, '   AST verification is unavailable on this Node runtime'));
+    console.error(c(colors.dim, `   (cause: ${failureMsg})`));
+    console.error('');
+    console.error(c(colors.dim, '   Findings below are regex-pattern matches only. Many would be'));
+    console.error(c(colors.dim, '   downgraded or suppressed by the dashboard\'s three-tier pipeline'));
+    console.error(c(colors.dim, '   (regex + AST + AI Review). Treat counts and grade as upper bounds.'));
+    console.error('');
+    console.error(c(colors.dim, '   For canonical analysis: connect via the GitHub App at'));
+    console.error(`   ${c(colors.cyan, 'https://runhalo.dev/dashboard')}`);
+    console.error(c(colors.dim, '   To restore local AST: try Node 20 (e.g. `nvm use 20`).'));
+    console.error('');
+  }
+
   // Format output
   let output: string;
   switch (options.format) {
@@ -3056,6 +3119,22 @@ async function scan(paths: string[], options: CLIOptions): Promise<number> {
       // Append trend line for text output
       if (trendLine) {
         output += trendLine + '\n';
+      }
+      // Annotate the rendered score line with a regex-only suffix
+      // when the run was degraded. Single string-replacement keeps
+      // the formatText() signature stable and avoids threading a new
+      // flag through. The line we target ends with ")" after the
+      // grade letter (e.g. "Score: 0/100 (F)"); we append the
+      // qualifier on the same line so the user sees "F (regex-only
+      // — verify in dashboard)" instead of an unqualified "F".
+      // Note: no literal space after "Score:" in the regex because
+      // formatScoreLine wraps the label in ANSI bold (the reset
+      // escape `\x1b[0m` lands between the colon and the space).
+      if (!astAvailable) {
+        output = output.replace(
+          /(📊 COPPA Compliance Score:[^\n]*?\))(\n)/,
+          (_, head, nl) => `${head} ${c(colors.yellow, '(regex-only — verify in dashboard)')}${nl}`,
+        );
       }
   }
 
@@ -3110,9 +3189,20 @@ async function scan(paths: string[], options: CLIOptions): Promise<number> {
 
 
     if (totalViolations > 0) {
-      const exposure = formatDollarExposure(totalViolations);
-      console.error(`💰 ${totalViolations} violations found = ${exposure} potential exposure`);
-      console.error('   AI Review removes false positives from your results → runhalo.dev/upgrade');
+      // In regex-only mode, the dollar-exposure framing is wildly
+      // overstated (each false-positive regex match becomes part of
+      // the "exposure" total). Suppress it and lead with a directive
+      // pointer to the dashboard for verified analysis. Confident
+      // alarm framing earns trust only when the underlying analysis
+      // was actually run.
+      if (astAvailable) {
+        const exposure = formatDollarExposure(totalViolations);
+        console.error(`💰 ${totalViolations} violations found = ${exposure} potential exposure`);
+        console.error('   AI Review removes false positives from your results → runhalo.dev/upgrade');
+      } else {
+        console.error(`📋 ${totalViolations} regex-only matches found (verify in dashboard)`);
+        console.error(`   ${c(colors.dim, 'Many will downgrade or suppress under AST + AI Review.')}`);
+      }
     } else {
       console.error('✅ No violations found');
     }
@@ -3122,8 +3212,13 @@ async function scan(paths: string[], options: CLIOptions): Promise<number> {
 
     console.error(formatRegulatoryCountdownCLI());
 
-    // Dashboard link
-    console.error('📊 Dashboard: runhalo.dev/app/dashboard');
+    // Next-step CTA. The dashboard is the canonical surface for
+    // history, fix suggestions, and PR comments — make that the
+    // last thing the user reads, not just a pricing pitch.
+    console.error('');
+    console.error(`${c(colors.bold, 'Next step:')} connect your repo at ${c(colors.cyan, 'https://runhalo.dev/dashboard')}`);
+    console.error(`           ${c(colors.dim, 'for full three-tier analysis (regex + AST + AI review),')}`);
+    console.error(`           ${c(colors.dim, 'scan history, and fix suggestions on every PR.')}`);
     console.error('');
   }
 

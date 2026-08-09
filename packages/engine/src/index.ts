@@ -18,6 +18,69 @@ import { applyFrameworkOverrides } from './frameworks';
 import { ContextAnalyzer, ConfidenceResult, ConfidenceSignals, ConfidenceInterpretation, ViolationInput } from './context-analyzer';
 export type { ConfidenceResult, ConfidenceSignals, ConfidenceInterpretation, ViolationInput };
 
+/**
+ * Process-wide AST availability state.
+ *
+ * The native tree-sitter binding can throw at parse time when the
+ * prebuilt NAPI binary doesn't match the host Node ABI (e.g.
+ * tree-sitter@0.21.x on Node 24, which produces "Invalid argument"
+ * synchronously on every parse() call). When that happens, the
+ * engine silently downgrades all violations on that file to
+ * regex-only mode. The downgrade is the right runtime behavior —
+ * regex matches are still useful — but the previous implementation
+ * also called `console.warn` once per file, spamming stderr with
+ * dozens of identical stack traces while the user-facing output
+ * gave no qualified hint that the run was degraded.
+ *
+ * Two pieces of state are exposed so the CLI can render a single
+ * up-front banner instead:
+ *
+ *   isAstAvailable() — true unless any parse() has thrown this
+ *     process. Once flipped to false, it stays false (we don't
+ *     retry per-file; tree-sitter doesn't recover from an ABI
+ *     mismatch within a process).
+ *
+ *   getAstFailureMessage() — the first thrown error's message,
+ *     so callers can surface a concrete diagnostic rather than a
+ *     generic "AST unavailable" string.
+ */
+let astAvailableFlag = true;
+let astFailureMessage: string | null = null;
+
+export function isAstAvailable(): boolean {
+  return astAvailableFlag;
+}
+
+export function getAstFailureMessage(): string | null {
+  return astFailureMessage;
+}
+
+/** Reset AST availability state for a new scan run.
+ *
+ *  Production usage: `runhalo watch` keeps the same Node process
+ *  alive across scan cycles. Without resetting, a transient parse
+ *  failure during one cycle would mark every subsequent cycle as
+ *  degraded forever. The CLI calls this at the top of each scan()
+ *  invocation so each scan is judged on its own.
+ *
+ *  Test usage: reset state between Jest test files.
+ *
+ *  Note: for a true tree-sitter ABI mismatch (the Node 24 case),
+ *  the very first parse() of the next scan will re-flip the flag
+ *  — there's no way to recover within the same process. The reset
+ *  exists so transient single-file failures don't pollute later
+ *  cycles unnecessarily.
+ */
+export function resetAstAvailability(): void {
+  astAvailableFlag = true;
+  astFailureMessage = null;
+}
+
+/** @deprecated Use `resetAstAvailability` instead. Kept as a thin
+ *  alias for tests that imported the previous underscore-prefixed
+ *  name. */
+export const _resetAstAvailabilityForTesting = resetAstAvailability;
+
 // Rule severity levels
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 
@@ -1652,8 +1715,17 @@ export class HaloEngine {
         }
       }
     } catch (error) {
-      // If AST parsing fails entirely, fall back to regex-only
-      console.warn('AST parsing failed, using regex-only mode:', error);
+      // If AST parsing fails entirely (typically a native tree-sitter
+      // ABI mismatch on a Node version the prebuilt binary doesn't
+      // support), fall back to regex-only. Record the failure once
+      // at process scope so the CLI can render a single up-front
+      // degraded-mode banner; callers shouldn't have to grep stderr
+      // to know the run is degraded.
+      if (astAvailableFlag) {
+        astAvailableFlag = false;
+        astFailureMessage = error instanceof Error ? error.message : String(error);
+        console.warn('AST parsing unavailable; running in regex-only mode for this process. Cause:', astFailureMessage);
+      }
       for (const v of violations) {
         v.astVerdict = 'regex_only';
         v.astConfidence = 0;

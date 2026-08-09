@@ -47,7 +47,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@runhalo/engine": "^1.0.0",
+    "@runhalo/engine": "^1.3.2",
     "commander": "^11.1.0",
     "glob": "^10.3.10",
     "pdfkit": "^0.17.2"
